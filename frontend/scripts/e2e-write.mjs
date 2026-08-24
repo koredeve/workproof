@@ -3,7 +3,7 @@
 import { createClient, createAccount, generatePrivateKey } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 
-const CONTRACT_ADDRESS = '0xfB4F90f4C00dDf7f12505A40A12D6536a2d18c96';
+const CONTRACT_ADDRESS = '0xeD581E0D4f28c7FAc74Ea3D112C630D55d25B7B3';
 if (!process.env.SMOKE_PRIVATE_KEY) {
   console.error('Set SMOKE_PRIVATE_KEY to run the write test.');
   process.exit(1);

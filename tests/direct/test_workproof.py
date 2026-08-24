@@ -1,4 +1,8 @@
 import json
+import time
+from datetime import datetime, timezone, timedelta
+
+U = int  # contract coerces ints to u256
 
 BUDGET = 2 * 10**18
 
@@ -58,7 +62,7 @@ def _setup_submitted(direct_vm, contract, client, freelancer, cid="c1"):
     _post(direct_vm, contract, client, cid)
     direct_vm.sender = client
     contract.set_criteria(cid, CRITERIA)
-    contract.set_deadline(cid, "2026-09-30")
+    contract.set_deadline(cid, U(int(time.time()) + 86400))
     with direct_vm.prank(freelancer):
         contract.accept_contract(cid)
         contract.submit_work(cid, EVIDENCE, EXPLANATION)
@@ -123,7 +127,8 @@ def test_criteria_are_client_only_and_locked_after_accept(direct_vm, direct_depl
         contract.set_criteria("c1", [])
 
     contract.set_criteria("c1", CRITERIA)
-    contract.set_deadline("c1", "2026-09-30")
+    dl = U(int(time.time()) + 86400)
+    contract.set_deadline("c1", dl)
 
     with direct_vm.prank(direct_bob):
         contract.accept_contract("c1")
@@ -131,11 +136,11 @@ def test_criteria_are_client_only_and_locked_after_accept(direct_vm, direct_depl
     with direct_vm.expect_revert("Criteria are locked"):
         contract.set_criteria("c1", ["changed"])
     with direct_vm.expect_revert("Deadline is locked"):
-        contract.set_deadline("c1", "2026-10-01")
+        contract.set_deadline("c1", dl + 60)
 
     c = contract.get_contract("c1")
     assert len(c["criteria"]) == 4
-    assert c["deadline"] == "2026-09-30"
+    assert c["deadline"] == str(dl)
 
 
 def test_accept_guards(direct_vm, direct_deploy, direct_alice, direct_bob):
@@ -384,3 +389,138 @@ def test_unreachable_evidence_is_transient(direct_vm, direct_deploy, direct_alic
         contract.verify_work("c1")
 
     assert contract.get_contract("c1")["status"] in ("SUBMITTED", "VERIFYING")
+
+
+# ---------- v2 scale pack ----------
+
+def test_deadline_enforcement(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Submit is blocked after the deadline; permissionless expiry refund works."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _post(direct_vm, contract, direct_alice)
+    direct_vm.sender = direct_alice
+    contract.set_criteria("c1", CRITERIA)
+    # direct mode runs on the real clock: a 2-second deadline lets us cross it
+    contract.set_deadline("c1", U(int(time.time()) + 2))
+    with direct_vm.prank(direct_bob):
+        contract.accept_contract("c1")
+
+    time.sleep(3)
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("deadline has passed"):
+            contract.submit_work("c1", EVIDENCE, EXPLANATION)
+
+    contract.refund_expired("c1")
+    assert contract.get_contract("c1")["status"] == "EXPIRED"
+    assert contract.credit_of(direct_alice) == BUDGET
+
+    with direct_vm.expect_revert("Only unfunded-work"):
+        contract.refund_expired("c1")
+
+
+def test_deadline_validation(direct_vm, direct_deploy, direct_alice):
+    """Past deadlines are rejected at set time."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _post(direct_vm, contract, direct_alice)
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert("in the future"):
+        contract.set_deadline("c1", U(int(time.time()) - 100))
+    contract.set_deadline("c1", U(0))  # 0 = no deadline, allowed
+    contract.set_deadline("c1", U(int(time.time()) + 60))
+
+
+def test_protocol_fee_on_settlement(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    """Owner-configured fee routes to treasury on worker settlement."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    direct_vm.sender = direct_alice
+    contract.set_fee_config(U(500), direct_charlie)  # 5%
+    _setup_submitted(direct_vm, contract, direct_alice, direct_bob)
+    _mock_web(direct_vm)
+    direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
+    contract.verify_work("c1")
+
+    assert contract.get_contract("c1")["status"] == "PAID"
+    expected_worker = BUDGET - (BUDGET * 500 // 10000)
+    assert contract.credit_of(direct_bob) == expected_worker
+    assert contract.credit_of(direct_charlie) == BUDGET * 500 // 10000
+
+
+def test_fee_config_guards(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Only owner sets fees; cap enforced."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("Only owner"):
+            contract.set_fee_config(U(100), direct_alice)
+    with direct_vm.expect_revert("cap"):
+        contract.set_fee_config(U(2000), direct_alice)
+    contract.set_fee_config(U(0), direct_alice)
+
+
+def test_mutual_amendment(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Client proposes, freelancer approves; criteria replaced only with both signatures."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _post(direct_vm, contract, direct_alice)
+    direct_vm.sender = direct_alice
+    contract.set_criteria("c1", CRITERIA)
+    with direct_vm.prank(direct_bob):
+        contract.accept_contract("c1")
+
+    # no proposal yet
+    with direct_vm.expect_revert("No amendment has been proposed"):
+        contract.cancel_amendment("c1")
+
+    # freelancer cannot approve a non-existent proposal
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("No amendment has been proposed"):
+            contract.approve_amendment("c1")
+
+    NEW = ["Revised criterion one", "Revised criterion two"]
+
+    # only the client proposes
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("Only the contract client"):
+            contract.propose_amendment("c1", NEW)
+
+    contract.propose_amendment("c1", NEW)
+
+    # direct set_criteria stays locked even with a proposal pending
+    with direct_vm.expect_revert("Criteria are locked"):
+        contract.set_criteria("c1", NEW)
+
+    # client can withdraw the proposal
+    contract.cancel_amendment("c1")
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("No amendment has been proposed"):
+            contract.approve_amendment("c1")
+
+    # re-propose; freelancer approves; criteria replaced
+    contract.propose_amendment("c1", NEW)
+    with direct_vm.prank(direct_bob):
+        contract.approve_amendment("c1")
+
+    c = contract.get_contract("c1")
+    assert c["criteria"] == NEW
+    assert c["amendment_pending"] == ""
+
+
+def test_rating_and_reputation(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Client rates once after PAID; per-freelancer average computed on-chain."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _setup_submitted(direct_vm, contract, direct_alice, direct_bob)
+    _mock_web(direct_vm)
+    direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
+    contract.verify_work("c1")
+
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("Only the contract client"):
+            contract.rate_contract("c1", U(5))
+    with direct_vm.expect_revert("between 1 and 5"):
+        contract.rate_contract("c1", U(6))
+
+    contract.rate_contract("c1", U(4))
+    with direct_vm.expect_revert("already rated"):
+        contract.rate_contract("c1", U(5))
+
+    rep = contract.reputation_of(direct_bob)
+    assert rep["count"] == 1
+    assert rep["avg_rating_x10"] == 40
+    assert contract.reputation_of(direct_alice)["count"] == 0

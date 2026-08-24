@@ -2,7 +2,7 @@ import { createClient, createAccount } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { explorerAddressUrl } from './lib.js';
 
-export const CONTRACT_ADDRESS = '0xfB4F90f4C00dDf7f12505A40A12D6536a2d18c96';
+export const CONTRACT_ADDRESS = '0xeD581E0D4f28c7FAc74Ea3D112C630D55d25B7B3';
 export const EXPLORER_URL = explorerAddressUrl(CONTRACT_ADDRESS);
 
 export const STATUS = {

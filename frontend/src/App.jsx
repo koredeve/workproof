@@ -83,6 +83,60 @@ function CriterionResults({ verdictJson, criteria }) {
   );
 }
 
+function AmendmentBox({ c, onAction, busy }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  if (c.amendment_pending) {
+    return (
+      <div className="submitbox">
+        <p className="hint">An amendment is pending — awaiting freelancer approval.</p>
+        {sameAddr(me, c.freelancer) && (
+          <button className="btn-stamp" disabled={!!busy}
+            onClick={() => onAction('approve_amendment', [c.id], 'Amendment approved — criteria updated.')}>
+            Approve amendment
+          </button>
+        )}
+      </div>
+    );
+  }
+  if (!open) {
+    return <button className="ghost" style={{ marginTop: 0 }} onClick={() => setOpen(true)}>Propose criteria amendment</button>;
+  }
+  return (
+    <div className="submitbox">
+      <p className="hint">Propose revised criteria. Takes effect only when the freelancer approves — criteria are never changed unilaterally.</p>
+      <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)}
+        placeholder={'One criterion per line, e.g.\nLanding page is publicly accessible\nPricing section present'} />
+      <div className="row">
+        <button className="btn-stamp" disabled={!!busy || !text.trim()}
+          onClick={() => onAction('propose_amendment', [c.id, text.split('\n').map((x) => x.trim()).filter(Boolean)], 'Amendment proposed — awaiting freelancer approval.')}>
+          Propose amendment
+        </button>
+        <button className="ghost" style={{ marginTop: 0 }} onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function RateBox({ c, onAction, busy }) {
+  const [rating, setRating] = useState(0);
+  return (
+    <div className="submitbox">
+      <p className="hint">Rate this collaboration — ratings form the freelancer's on-chain reputation.</p>
+      <div className="row">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} className={'chip' + (rating >= n ? ' on' : '')}
+            onClick={() => setRating(n)} aria-label={`${n} star${n > 1 ? 's' : ''}`}>★</button>
+        ))}
+        <button className="btn-stamp" disabled={!rating || !!busy}
+          onClick={() => onAction('rate_contract', [c.id, rating], 'Rating recorded on-chain.')}>
+          Submit rating
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ContractCard({ c, expanded, onToggle, client, me, onAction, busy, demo }) {
   const isClient = sameAddr(me, c.client);
   const isWorker = sameAddr(me, c.freelancer);
@@ -143,6 +197,16 @@ function ContractCard({ c, expanded, onToggle, client, me, onAction, busy, demo 
           onClick={() => onAction('verify_work', [c.id], 'Verification complete — result recorded on-chain.')}>
           {busy ? 'Validators retrieving evidence and judging criteria…' : 'Run GenLayer verification'}
         </button>
+      );
+    }
+    if (c.status === STATUS.ACCEPTED && isClient && !demo) {
+      actions.push(
+        <AmendmentBox key="amend" c={c} client={client} me={me} onAction={onAction} busy={busy} />
+      );
+    }
+    if (c.status === STATUS.PAID && isClient && !c.rated && !demo) {
+      actions.push(
+        <RateBox key="rate" c={c} onAction={onAction} busy={busy} />
       );
     }
     if (c.status === STATUS.FAILED && isClient) {
@@ -284,6 +348,12 @@ function ContractCard({ c, expanded, onToggle, client, me, onAction, busy, demo 
           {c.dispute_reason && (
             <p className="deliverable"><span className="hint">dispute reason</span>{c.dispute_reason}</p>
           )}
+          {c.amendment_pending && (
+            <p className="deliverable"><span className="hint">amendment proposed — awaiting freelancer approval</span>
+              {(() => { try { return JSON.parse(c.amendment_pending).join(' · '); } catch { return c.amendment_pending; } })()}
+            </p>
+          )}
+          {c.rated && <p className="hint">client rating: {stars(c.rating)}</p>}
 
           {actions.length > 0 && <div className="actions">{actions}</div>}
           {c.status === STATUS.OPEN && isClient && !demo && (
@@ -329,7 +399,10 @@ function CreateView({ client, me, onPosted }) {
       );
       const clean = criteria.map((c) => c.trim()).filter(Boolean);
       await writeAndWait(client, 'set_criteria', [id, clean]);
-      if (deadline) await writeAndWait(client, 'set_deadline', [id, deadline]);
+      if (deadline) {
+        const ts = Math.floor(new Date(deadline + 'T23:59:59Z').getTime() / 1000);
+        await writeAndWait(client, 'set_deadline', [id, ts]);
+      }
       onPosted(id, hash);
       setTitle(''); setDescription(''); setBudget('1'); setDeadline('');
       setCriteria(['', '']); setConfirmed(false); setPreview(false);

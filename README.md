@@ -102,12 +102,13 @@ SMOKE_PRIVATE_KEY=0x... node scripts/e2e-wallet.mjs     # injected-wallet signin
 - Acceptance criteria are locked once a freelancer accepts; only the client can set them, and only while the contract is OPEN.
 - Double settlement is impossible: verification transitions SUBMITTED→PAID/FAILED exactly once; disputes require FAILED state and resolve exactly once.
 - Evidence is capped at 3 URLs, truncated per URL — very large evidence sets should be aggregated behind one URL.
-- Deadlines are stored for display and client-side guardrails; on-chain time enforcement awaits a verified clock API (documented limitation).
+- Deadlines are enforced on-chain: GenVM pins `time.time()` to the deterministic transaction timestamp, so late submissions revert and anyone can trigger permissionless expiry refunds.
 - Direct-mode tests note: a reverted `verify_work` leaves the `VERIFYING` marker in direct mode (no tx rollback in the in-memory runner). Real consensus applies no state on failed execution; the safety property (no funds move) is asserted in tests.
 - Demo mode is fully client-side and labeled; it never mixes with chain state.
 
 ## Known limitations
 
 - GEN-only escrow (native value); token escrow awaits cross-contract token standards.
+- v2 scale pack: protocol fee (owner-capped at 10%, routed to treasury on worker settlement), mutual criteria amendments (client proposes, freelancer approves — never unilateral), client ratings after settlement with on-chain per-freelancer reputation averages, permissionless expiry refunds.
 - Reputation module is stubbed (`readReputation` reserved) — no fake scores are shown.
 - StudioNet RPC occasionally serves stale contract schemas to the SDK encoder; keeping `post_contract` at 3 positional args sidesteps it (see git history for the saga).

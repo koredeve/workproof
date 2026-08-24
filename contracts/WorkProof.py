@@ -3,6 +3,7 @@
 from genlayer import *
 from dataclasses import dataclass
 import json
+import time
 
 
 ERROR_EXPECTED = "[EXPECTED]"
@@ -19,6 +20,9 @@ STATUS_FAILED = "FAILED"
 STATUS_DISPUTED = "DISPUTED"
 STATUS_REFUNDED = "REFUNDED"
 STATUS_CANCELLED = "CANCELLED"
+STATUS_EXPIRED = "EXPIRED"
+
+PROTOCOL_FEE_BPS_CAP = 1000  # max 10%
 
 MIN_BUDGET_ATTO = u256(10 ** 17)
 MAX_EVIDENCE_URLS = 3
@@ -78,6 +82,9 @@ class Contract:
 	verdict_overall: str
 	verdict_criteria: str
 	verdict_reasoning: str
+	amendment_pending: str
+	rating: u256
+	rated: bool
 
 
 class WorkProof(gl.Contract):
@@ -85,9 +92,13 @@ class WorkProof(gl.Contract):
 	contracts: TreeMap[str, Contract]
 	contract_ids: DynArray[str]
 	credits: TreeMap[Address, u256]
+	fee_bps: u256
+	treasury: Address
 
 	def __init__(self) -> None:
 		self.owner_addr = gl.message.sender_address
+		self.fee_bps = u256(0)
+		self.treasury = gl.message.sender_address
 
 	def _get(self, contract_id: str) -> Contract:
 		c = self.contracts.get(contract_id)
@@ -137,6 +148,9 @@ class WorkProof(gl.Contract):
 			verdict_overall="",
 			verdict_criteria="",
 			verdict_reasoning="",
+			amendment_pending="",
+			rating=u256(0),
+			rated=False,
 		)
 		self.contract_ids.append(contract_id)
 
@@ -152,12 +166,14 @@ class WorkProof(gl.Contract):
 			c.criteria.append(str(criteria[i]))
 
 	@gl.public.write
-	def set_deadline(self, contract_id: str, deadline: str) -> None:
+	def set_deadline(self, contract_id: str, deadline_ts: u256) -> None:
 		c = self._get(contract_id)
 		self._require_client(c)
 		if c.status != STATUS_OPEN:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Deadline is locked after a freelancer accepts")
-		c.deadline = str(deadline)
+		if deadline_ts != u256(0) and deadline_ts <= u256(int(time.time())):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Deadline must be in the future")
+		c.deadline = str(deadline_ts)
 
 	@gl.public.write
 	def accept_contract(self, contract_id: str) -> None:
@@ -184,10 +200,112 @@ class WorkProof(gl.Contract):
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} At least one evidence URL is required")
 		if len(evidence_urls) > MAX_EVIDENCE_URLS:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} At most {str(MAX_EVIDENCE_URLS)} evidence URLs are allowed")
+		if c.deadline != "" and u256(int(time.time())) > u256(int(c.deadline)):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} The deadline has passed; work can no longer be submitted")
 		for i in range(len(evidence_urls)):
 			c.evidence_urls.append(str(evidence_urls[i]))
 		c.explanation = str(explanation)
 		c.status = STATUS_SUBMITTED
+
+	def _settle_to_worker(self, c: Contract) -> None:
+		budget = c.budget_atto
+		fee = budget * self.fee_bps // u256(10000)
+		if fee > u256(0) and not (self.treasury == Address(c.freelancer)):
+			self.credits[self.treasury] = self.credits.get(self.treasury, u256(0)) + fee
+		self.credits[Address(c.freelancer)] = (
+			self.credits.get(Address(c.freelancer), u256(0)) + budget - fee
+		)
+
+	@gl.public.view
+	def get_fee_config(self) -> dict:
+		return {"fee_bps": self.fee_bps, "treasury": str(self.treasury)}
+
+	@gl.public.write
+	def set_fee_config(self, fee_bps: u256, treasury: Address) -> None:
+		if gl.message.sender_address != self.owner_addr:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only owner may set the fee configuration")
+		if fee_bps > u256(PROTOCOL_FEE_BPS_CAP):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Fee exceeds the protocol cap of {str(PROTOCOL_FEE_BPS_CAP)} bps")
+		self.fee_bps = fee_bps
+		self.treasury = Address(treasury)
+
+	@gl.public.write
+	def propose_amendment(self, contract_id: str, criteria: DynArray[str]) -> None:
+		c = self._get(contract_id)
+		self._require_client(c)
+		if c.status != STATUS_ACCEPTED:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Amendments are only possible after acceptance and before submission")
+		if len(criteria) < 1:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} At least one acceptance criterion is required")
+		clean = []
+		for i in range(len(criteria)):
+			clean.append(str(criteria[i]))
+		c.amendment_pending = json.dumps(clean)
+
+	@gl.public.write
+	def approve_amendment(self, contract_id: str) -> None:
+		c = self._get(contract_id)
+		if str(gl.message.sender_address) != c.freelancer:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only the freelancer may approve an amendment")
+		if c.status != STATUS_ACCEPTED:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Amendments are only possible before submission")
+		if c.amendment_pending == "":
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} No amendment has been proposed")
+		new_criteria = json.loads(c.amendment_pending)
+		while len(c.criteria) > 0:
+			c.criteria.pop()
+		for i in range(len(new_criteria)):
+			c.criteria.append(str(new_criteria[i]))
+		c.amendment_pending = ""
+
+	@gl.public.write
+	def cancel_amendment(self, contract_id: str) -> None:
+		c = self._get(contract_id)
+		self._require_client(c)
+		if c.amendment_pending == "":
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} No amendment has been proposed")
+		c.amendment_pending = ""
+
+	@gl.public.write
+	def refund_expired(self, contract_id: str) -> None:
+		c = self._get(contract_id)
+		if c.deadline == "":
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Contract has no deadline")
+		if u256(int(time.time())) <= u256(int(c.deadline)):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} The deadline has not passed yet")
+		if c.status not in (STATUS_OPEN, STATUS_ACCEPTED):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only unfunded-work contracts can expire")
+		self.credits[c.client] = self.credits.get(c.client, u256(0)) + c.budget_atto
+		c.status = STATUS_EXPIRED
+
+	@gl.public.write
+	def rate_contract(self, contract_id: str, rating: u256) -> None:
+		c = self._get(contract_id)
+		self._require_client(c)
+		if c.status != STATUS_PAID:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only settled contracts can be rated")
+		if c.rated:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Contract already rated")
+		if rating < u256(1) or rating > u256(5):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Rating must be between 1 and 5")
+		c.rating = rating
+		c.rated = True
+
+	@gl.public.view
+	def reputation_of(self, who: Address) -> dict:
+		target = str(Address(who))
+		total = 0
+		count = 0
+		for i in range(len(self.contract_ids)):
+			c = self.contracts.get(str(self.contract_ids[i]))
+			if c is None or c.status != STATUS_PAID or not c.rated:
+				continue
+			if str(c.freelancer) == target:
+				total = total + int(c.rating)
+				count = count + 1
+		if count == 0:
+			return {"avg_rating_x10": u256(0), "count": u256(0)}
+		return {"avg_rating_x10": u256(total * 10 // count), "count": u256(count)}
 
 	@gl.public.write
 	def verify_work(self, contract_id: str) -> None:
@@ -296,9 +414,7 @@ class WorkProof(gl.Contract):
 		c.verdict_reasoning = str(result["reasoning"])
 
 		if result["overall"] == "PASSED":
-			self.credits[Address(c.freelancer)] = (
-				self.credits.get(Address(c.freelancer), u256(0)) + c.budget_atto
-			)
+			self._settle_to_worker(c)
 			c.status = STATUS_PAID
 		else:
 			c.status = STATUS_FAILED
@@ -381,9 +497,7 @@ class WorkProof(gl.Contract):
 		result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 
 		if result["for_worker"]:
-			self.credits[Address(c.freelancer)] = (
-				self.credits.get(Address(c.freelancer), u256(0)) + c.budget_atto
-			)
+			self._settle_to_worker(c)
 			c.status = STATUS_PAID
 		else:
 			self.credits[c.client] = self.credits.get(c.client, u256(0)) + c.budget_atto
@@ -432,6 +546,9 @@ class WorkProof(gl.Contract):
 			"verdict_overall": c.verdict_overall,
 			"verdict_criteria": c.verdict_criteria,
 			"verdict_reasoning": c.verdict_reasoning,
+			"amendment_pending": c.amendment_pending,
+			"rating": c.rating,
+			"rated": c.rated,
 		}
 
 	@gl.public.view
