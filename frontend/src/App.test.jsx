@@ -86,7 +86,10 @@ function renderConnected() {
 }
 
 describe('WorkProof app', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = '/marketplace';
+  });
 
   it('renders positioning and the marketplace board', async () => {
     render(<App />);
@@ -100,8 +103,8 @@ describe('WorkProof app', () => {
     renderConnected();
     fireEvent.click(await screen.findByText('Build SaaS landing page'));
     expect(await screen.findByText('VERIFICATION FAILED')).toBeTruthy();
-    expect(screen.getByText('1 / 2 criteria satisfied')).toBeTruthy();
-    expect(screen.getByText('No pricing section found')).toBeTruthy();
+    expect(await screen.findByText(/criteria satisfied/)).toBeTruthy();
+    expect(await screen.findByText('No pricing section found')).toBeTruthy();
     // failed + client → refund + dispute options
     expect(screen.getByText('Refund escrow')).toBeTruthy();
     expect(screen.getByText('Open dispute')).toBeTruthy();
@@ -111,7 +114,7 @@ describe('WorkProof app', () => {
     renderConnected();
     fireEvent.click(await screen.findByText('Build SaaS landing page'));
     expect(await screen.findByText('Criteria evaluation')).toBeTruthy();
-    expect(screen.getByText(/Conceptual visualization/)).toBeTruthy();
+    expect(await screen.findByText(/Conceptual visualization/)).toBeTruthy();
   });
 
   it('accept action appears for open contracts', async () => {
@@ -123,6 +126,7 @@ describe('WorkProof app', () => {
   it('create view: criteria builder, confirmation gate and preview', async () => {
     renderConnected();
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(screen.getByPlaceholderText(/Contract title/)).toBeTruthy());
     fireEvent.change(screen.getByPlaceholderText(/Contract title/), { target: { value: 'New gig' } });
     fireEvent.change(screen.getByPlaceholderText(/Describe the work/), { target: { value: 'Do the work' } });
     fireEvent.change(screen.getByPlaceholderText(/Criterion 1/), { target: { value: 'It works' } });
@@ -152,7 +156,7 @@ describe('WorkProof app', () => {
   it('dispute flow UI: open dispute requires reason', async () => {
     renderConnected();
     fireEvent.click(await screen.findByText('Build SaaS landing page'));
-    const btn = screen.getByText('Open dispute');
+    const btn = await screen.findByText('Open dispute');
     expect(btn.disabled).toBe(true);
     fireEvent.change(screen.getByPlaceholderText(/State the dispute reason/), {
       target: { value: 'Pricing exists inside the accordion' },

@@ -64,6 +64,29 @@ export async function writeAndWait(client, functionName, args, value) {
   return hash;
 }
 
+// CriteriaAssistant bindings — AI-drafted criteria for client review.
+export async function draftCriteria(client, requestId, brief) {
+  const hash = await client.writeContract({
+    address: ASSISTANT_ADDRESS,
+    functionName: 'draft_criteria',
+    args: [requestId, brief],
+  });
+  await client.waitForTransactionReceipt({ hash, retries: 400 });
+  return hash;
+}
+
+export async function getDraft(client, requestId) {
+  return client.readContract({
+    address: ASSISTANT_ADDRESS,
+    functionName: 'get_draft',
+    args: [requestId],
+  });
+}
+
+export async function getReceipt(client, hash) {
+  return client.waitForTransactionReceipt({ hash, retries: 60 });
+}
+
 // Parse the on-chain per-criterion verdict JSON into a typed shape.
 export function parseCriteriaVerdict(jsonStr) {
   if (!jsonStr) return [];

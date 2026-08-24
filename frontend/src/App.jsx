@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   makeClient,
   CONTRACT_ADDRESS,
+  ASSISTANT_ADDRESS,
   EXPLORER_URL,
   STATUS,
   listContractIds,
@@ -9,7 +10,24 @@ import {
   readCredit,
   writeAndWait,
   parseCriteriaVerdict,
+  draftCriteria,
+  getDraft,
+  getReceipt,
 } from './genlayer.js';
+import { useHashRoute, parseRoute, navigate } from './router.js';
+
+function writeAndWaitRaw(client, fn, args, value) {
+  return client.writeContract({
+    address: CONTRACT_ADDRESS,
+    functionName: fn,
+    args,
+    ...(value !== undefined ? { value } : {}),
+  });
+}
+
+async function waitReceipt(client, hash) {
+  await client.waitForTransactionReceipt({ hash, retries: 400 });
+}
 import {
   GEN,
   toGen,
@@ -26,6 +44,39 @@ import {
 import WalletModal from './WalletModal.jsx';
 import { DEMO_CONTRACT, DEMO_STEPS } from './demo.js';
 import './styles.css';
+
+const TX_STAGES = ['Preparing', 'Wallet confirmation', 'Submitted', 'Processing', 'Confirmed'];
+
+function TxBanner({ tx, onClose }) {
+  // tx: { stage: 0..4 | 'failed', label, hash, error }
+  const idx = tx.stage === 'failed' ? -1 : tx.stage;
+  return (
+    <div className={'notice' + (tx.stage === 'failed' ? ' failed' : '')} role="status" aria-live="polite">
+      <div className="txstages" aria-hidden="true">
+        {TX_STAGES.map((s, i) => (
+          <span key={s} className={'txstage' + (i < idx ? ' done' : i === idx ? ' active' : '') + (tx.stage === 'failed' && i === 4 ? ' failed' : '')}>
+            {tx.stage === 'failed' && i === 4 ? 'Failed' : s}
+          </span>
+        ))}
+      </div>
+      {tx.label && <strong>{tx.label}</strong>}
+      {tx.hash && (
+        <span className="txline">
+          tx <a href={explorerTxUrl(tx.hash)} target="_blank" rel="noreferrer">{truncateHash(tx.hash)}</a>
+          {' · '}
+          <a href={'#/transactions/' + tx.hash}>details</a>
+        </span>
+      )}
+      {tx.error && (
+        <details className="txerr">
+          <summary>View technical details</summary>
+          <code>{tx.error}</code>
+        </details>
+      )}
+      <button className="linkish" onClick={onClose}>dismiss</button>
+    </div>
+  );
+}
 
 const VERIFICATION_STEPS = [
   { key: 'leader', label: 'Leader proposal' },
@@ -492,6 +543,78 @@ function CreateView({ client, me, onPosted }) {
   );
 }
 
+function ProfileView({ contracts, me, credit }) {
+  if (!me) {
+    return (
+      <section className="card">
+        <h2>Profile</h2>
+        <p className="hint">Connect a wallet to see your on-chain history.</p>
+      </section>
+    );
+  }
+  const mine = contracts.filter((c) => sameAddr(me, c.client) || sameAddr(me, c.freelancer));
+  const created = mine.filter((c) => sameAddr(me, c.client)).length;
+  const settled = mine.filter((c) => ['PAID', 'FAILED', 'REFUNDED'].includes(c.status));
+  const successful = mine.filter((c) => c.status === 'PAID' && sameAddr(me, c.freelancer)).length;
+  const rate = settled.length ? Math.round((successful / settled.length) * 100) : null;
+  const stats = computeStats(mine, credit, me);
+  return (
+    <section className="card">
+      <h2>Profile <span className="tag">derived from on-chain history</span></h2>
+      <div className="parties" style={{ marginBottom: 12 }}>
+        <div><span className="hint">wallet</span> <span className="mono">{me}</span></div>
+        <div><span className="hint">withdrawable</span> <strong>{credit} GEN</strong></div>
+      </div>
+      <div className="statsgrid">
+        <div className="statcard"><div className="statvalue">{created}</div><div className="statlabel">Contracts created</div></div>
+        <div className="statcard"><div className="statvalue">{stats.completed}</div><div className="statlabel">Completed</div></div>
+        <div className="statcard"><div className="statvalue">{rate === null ? '—' : rate + '%'}</div><div className="statlabel">Verification success rate</div></div>
+        <div className="statcard"><div className="statvalue">{mine.filter((c) => c.status === 'DISPUTED').length}</div><div className="statlabel">Disputes</div></div>
+        <div className="statcard"><div className="statvalue">{stats.earnings}</div><div className="statlabel">Earnings (GEN)</div></div>
+        <div className="statcard"><div className="statvalue">{stats.spending}</div><div className="statlabel">Spending (GEN)</div></div>
+      </div>
+      {mine.length === 0 && <p className="hint" style={{ marginTop: 10 }}>No contracts involve this wallet yet.</p>}
+    </section>
+  );
+}
+
+function TxExplorer({ client, hash }) {
+  const [receipt, setReceipt] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let live = true;
+    setError('');
+    getReceipt(client, hash)
+      .then((r) => live && setReceipt(r))
+      .catch((e) => live && setError(String(e?.message ?? e)));
+    return () => {
+      live = false;
+    };
+  }, [client, hash]);
+  return (
+    <section className="card">
+      <h2>Transaction <span className="mono" style={{ fontSize: 12 }}>{truncateHash(hash, 14, 10)}</span></h2>
+      <p className="hint">
+        <a href={explorerTxUrl(hash)} target="_blank" rel="noreferrer">Open in the block explorer</a>
+      </p>
+      {error && <p className="hint">Could not load this transaction: {error}</p>}
+      {!receipt && !error && <div className="skeleton" />}
+      {receipt && (
+        <table style={{ width: '100%', fontSize: 13 }}>
+          <tbody>
+            <tr><td style={{ color: 'var(--ink-2)', width: 160 }}>Status</td><td><strong>{receipt.status_name ?? String(receipt.status)}</strong></td></tr>
+            <tr><td style={{ color: 'var(--ink-2)' }}>Result</td><td>{receipt.result_name ?? '—'}</td></tr>
+            <tr><td style={{ color: 'var(--ink-2)' }}>Hash</td><td className="mono" style={{ wordBreak: 'break-all' }}>{String(receipt.hash ?? hash)}</td></tr>
+            <tr><td style={{ color: 'var(--ink-2)' }}>From</td><td className="mono">{String(receipt.from_address ?? receipt.sender ?? '—')}</td></tr>
+            <tr><td style={{ color: 'var(--ink-2)' }}>To</td><td className="mono">{String(receipt.to_address ?? receipt.recipient ?? '—')}</td></tr>
+            <tr><td style={{ color: 'var(--ink-2)' }}>Value</td><td className="mono">{String(receipt.value ?? 0)}</td></tr>
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 function Dashboard({ contracts, me, credit, onOpenDemo, demoOpen }) {
   const stats = useMemo(() => computeStats(contracts, credit, me), [contracts, credit, me]);
   const cards = [
@@ -527,9 +650,10 @@ function Dashboard({ contracts, me, credit, onOpenDemo, demoOpen }) {
 }
 
 export default function App() {
+  const route = useHashRoute();
+  const parsed = parseRoute(route);
   const [client, setClient] = useState(() => makeClient(null));
   const [me, setMe] = useState(null);
-  const [view, setView] = useState('marketplace');
   const [contracts, setContracts] = useState([]);
   const [demoContracts, setDemoContracts] = useState([]);
   const [expanded, setExpanded] = useState(null);
@@ -538,6 +662,7 @@ export default function App() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [tx, setTx] = useState(null);
+  const setStage = (stage, extra = {}) => setTx((t) => ({ ...(t ?? {}), stage, ...extra }));
 
   async function refresh() {
     setLoading(true);
@@ -572,12 +697,18 @@ export default function App() {
   async function act(fn, args, doneMsg) {
     setBusy(fn + args.join('|'));
     setError('');
+    setTx({ stage: 0, label: doneMsg });
     try {
-      const hash = await writeAndWait(client, fn, args);
-      setTx({ label: doneMsg, hash });
+      setStage(1);
+      const hash = await writeAndWaitRaw(client, fn, args);
+      setStage(2, { hash });
+      setStage(3, { hash });
+      await waitReceipt(client, hash);
+      setStage(4, { hash, label: doneMsg });
       await refresh();
     } catch (e) {
-      setError(fn + ' failed: ' + (e?.message ?? String(e)));
+      setTx({ stage: 'failed', label: fn + ' failed', error: String(e?.message ?? e) });
+      setError('Your transaction could not be processed. Check the details below and try again.');
     } finally {
       setBusy('');
     }
@@ -592,9 +723,10 @@ export default function App() {
         <div className="topbar">
           <a className="wordmark" href="#top">Work<em>Proof</em></a>
           <nav className="topnav">
-            <button className={'navbtn' + (view === 'marketplace' ? ' on' : '')} onClick={() => setView('marketplace')}>Marketplace</button>
-            <button className={'navbtn' + (view === 'create' ? ' on' : '')} onClick={() => setView('create')}>Create</button>
-            <button className={'navbtn' + (view === 'dashboard' ? ' on' : '')} onClick={() => setView('dashboard')}>Dashboard</button>
+            <button className={'navbtn' + (parsed.view === 'marketplace' ? ' on' : '')} onClick={() => navigate('/marketplace')}>Marketplace</button>
+            <button className={'navbtn' + (parsed.view === 'create' ? ' on' : '')} onClick={() => navigate('/create')}>Create</button>
+            <button className={'navbtn' + (parsed.view === 'dashboard' ? ' on' : '')} onClick={() => navigate('/dashboard')}>Dashboard</button>
+            <button className={'navbtn' + (parsed.view === 'profile' ? ' on' : '')} onClick={() => navigate('/profile')}>Profile</button>
             <WalletModal
               me={me}
               onUnlock={(c, address) => {
@@ -610,7 +742,7 @@ export default function App() {
           </nav>
         </div>
 
-        {view === 'marketplace' && (
+        {parsed.view === 'marketplace' && (
           <div className="hero" id="top">
             <div>
               <h1>
@@ -623,7 +755,7 @@ export default function App() {
                 requirements were fulfilled.
               </p>
               <div className="hero-ctas">
-                <button className="btn-stamp" onClick={() => setView('create')}>Create a Contract</button>
+                <button className="btn-stamp" onClick={() => navigate('/create')}>Create a Contract</button>
                 <a className="btn-ghost" style={{ textDecoration: 'none', display: 'inline-block' }} href="#board">
                   Explore Work
                 </a>
@@ -651,32 +783,22 @@ export default function App() {
         )}
       </header>
 
-      {tx && (
-        <div className="notice">
-          <strong>{tx.label}</strong>
-          {tx.hash && (
-            <span className="txline">
-              tx <a href={explorerTxUrl(tx.hash)} target="_blank" rel="noreferrer">{truncateHash(tx.hash)}</a>
-            </span>
-          )}
-          <button className="linkish" onClick={() => setTx(null)}>dismiss</button>
-        </div>
-      )}
+      {tx && <TxBanner tx={tx} onClose={() => setTx(null)} />}
       {error && <div className="error">{error}</div>}
 
-      {view === 'create' && (
+      {parsed.view === 'create' && (
         <CreateView
           client={client}
           me={me}
           onPosted={(id, hash) => {
-            setTx({ label: 'Contract posted, criteria recorded, escrow funded.', hash });
-            setView('marketplace');
+            setTx({ stage: 4, label: 'Contract posted, criteria recorded, escrow funded.', hash });
+            navigate('/contracts/' + id);
             refresh();
           }}
         />
       )}
 
-      {view === 'dashboard' && (
+      {parsed.view === 'dashboard' && (
         <Dashboard
           contracts={contracts}
           me={me}
@@ -684,20 +806,58 @@ export default function App() {
           demoOpen={demoContracts.length > 0}
           onOpenDemo={() => {
             setDemoContracts([DEMO_CONTRACT]);
-            setExpanded('DEMO-GL-2048');
+            navigate('/contracts/DEMO-GL-2048');
           }}
         />
       )}
 
+      {parsed.view === 'profile' && (
+        <ProfileView contracts={contracts} me={me} credit={credit} />
+      )}
+
+      {parsed.view === 'tx' && (
+        <TxExplorer client={client} hash={parsed.hash} />
+      )}
+
+      {parsed.view === 'contract' && (
+        <section className="card">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <h2>Contract detail</h2>
+            <button className="btn-ghost" onClick={() => navigate('/marketplace')}>← Back to marketplace</button>
+          </div>
+          {loading ? (
+            <div className="skeleton" />
+          ) : (
+            (() => {
+              const c = all.find((x) => x.id === parsed.id);
+              if (!c) return <p className="hint">Contract not found — it may be a demo contract; open it from the Dashboard, or refresh.</p>;
+              return (
+                <ContractCard
+                  c={c}
+                  demo={!!c.demo}
+                  expanded={true}
+                  onToggle={() => navigate('/marketplace')}
+                  client={client}
+                  me={me}
+                  onAction={act}
+                  busy={!!busy}
+                />
+              );
+            })()
+          )}
+        </section>
+      )}
+
+      {parsed.view !== 'tx' && parsed.view !== 'profile' && parsed.view !== 'contract' && (
       <section className="card" id="board">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h2>{view === 'dashboard' ? 'Recent contracts' : 'Open marketplace'} <span className="count">{contracts.length}</span></h2>
+          <h2>{parsed.view === 'dashboard' ? 'Recent contracts' : 'Open marketplace'} <span className="count">{contracts.length}</span></h2>
           <div className="chips">
             <button className="chip on">all ({contracts.length})</button>
             <button className="chip">open ({openCount})</button>
           </div>
         </div>
-        {!me && view !== 'dashboard' && (
+        {!me && parsed.view !== 'dashboard' && (
           <p className="hint">Connect a wallet to create, accept, or verify — browsing is open to everyone.</p>
         )}
         {loading ? (
@@ -713,8 +873,8 @@ export default function App() {
                 key={c.id}
                 c={c}
                 demo={!!c.demo}
-                expanded={expanded === c.id}
-                onToggle={() => setExpanded(expanded === c.id ? null : c.id)}
+                expanded={expanded === c.id || parsed.view === 'dashboard'}
+                onToggle={() => navigate('/contracts/' + encodeURIComponent(c.id))}
                 client={client}
                 me={me}
                 onAction={act}
@@ -725,6 +885,7 @@ export default function App() {
         )}
         <button className="ghost" onClick={refresh}>Refresh</button>
       </section>
+      )}
 
       <footer>
         <a href="https://github.com/koredeve/workproof" target="_blank" rel="noreferrer">source</a>
