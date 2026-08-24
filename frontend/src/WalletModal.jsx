@@ -5,6 +5,11 @@ import {
   newProviderRegistry,
   walletOptions,
   connectProvider,
+  silentConnect,
+  pickProvider,
+  saveSession,
+  loadSession,
+  clearSession,
   INSTALL_LINKS,
   shortAddr,
 } from './wallets.js';
@@ -28,6 +33,39 @@ export default function WalletModal({ onUnlock, onLock, me }) {
   const [file, setFile] = useState(null);
   const [rawKey, setRawKey] = useState('');
   const regRef = useRef(null);
+  const restoredRef = useRef(false);
+
+  // Silent reconnect on load: only works if the wallet still grants access.
+  useEffect(() => {
+    if (me || restoredRef.current) return;
+    restoredRef.current = true;
+    const session = loadSession();
+    if (!session || session.kind !== 'eip6963' && session.kind !== 'legacy') return;
+    const reg = newProviderRegistry();
+    reg.start();
+    reg.settle(700).then(async (found) => {
+      const picked = pickProvider(session, found);
+      reg.stop();
+      if (!picked) {
+        clearSession();
+        return;
+      }
+      const address = await silentConnect(picked.provider);
+      if (!address) {
+        clearSession();
+        return;
+      }
+      const c = createClient({
+        chain: studionet,
+        account: address,
+        provider: picked.provider,
+      });
+      try {
+        await c.connect('studionet');
+      } catch {}
+      onUnlock(c, address, 'wallet');
+    });
+  }, [me]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,12 +77,13 @@ export default function WalletModal({ onUnlock, onLock, me }) {
     return () => reg.stop();
   }, [open]);
 
-  function unlockWalletClient(address, provider) {
+  function unlockWalletClient(address, provider, session) {
     const client = createClient({
       chain: studionet,
       account: address,
       provider,
     });
+    if (session) saveSession(session);
     onUnlock(client, address, 'wallet');
     setOpen(false);
     setStatus('');
@@ -58,6 +97,10 @@ export default function WalletModal({ onUnlock, onLock, me }) {
     try {
       const address = await connectProvider(opt.provider);
       setStatus('Linking network…');
+      const session =
+        opt.kind === 'eip6963'
+          ? { kind: 'eip6963', rdns: opt.id }
+          : { kind: 'legacy' };
       const probe = createClient({
         chain: studionet,
         account: address,
@@ -68,7 +111,7 @@ export default function WalletModal({ onUnlock, onLock, me }) {
       } catch {
         /* user may decline network add — signing still works on StudioNet */
       }
-      unlockWalletClient(address, opt.provider);
+      unlockWalletClient(address, opt.provider, session);
     } catch (e) {
       setErr(
         (e?.message ?? String(e)).slice(0, 160) || 'Connection cancelled'
@@ -143,7 +186,7 @@ export default function WalletModal({ onUnlock, onLock, me }) {
       <div className="walletchip">
         <span className="dot" />
         <span className="mono">{shortAddr(me)}</span>
-        <button className="linkish" onClick={onLock}>Lock</button>
+        <button className="linkish" onClick={() => { clearSession(); onLock(); }}>Lock</button>
       </div>
     );
   }

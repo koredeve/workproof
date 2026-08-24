@@ -57,6 +57,10 @@ Contract (criteria fixed at creation)
    → Escrow settles: PAID / refund / dispute arbitration
 ```
 
+## The AI assistant
+
+Paste a prose brief ("I need a dev to build a responsive landing page...") into the Create tab and the **CriteriaAssistant** Intelligent Contract drafts a structured title, description and 3-6 objective criteria on-chain. The draft is only a suggestion: nothing enters a work contract until you review it, edit it, and tick the confirmation box yourself.
+
 ## Tech stack
 
 - **GenLayer Intelligent Contract** (Python, GenVM, pinned runner) — escrow, state machine, criteria-based adjudication

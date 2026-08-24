@@ -3,6 +3,11 @@ import {
   newProviderRegistry,
   walletOptions,
   connectProvider,
+  silentConnect,
+  pickProvider,
+  saveSession,
+  loadSession,
+  clearSession,
   shortAddr,
   INSTALL_LINKS,
 } from './wallets.js';
@@ -87,6 +92,43 @@ describe('connectProvider', () => {
   it('throws when the wallet returns no accounts', async () => {
     const provider = { request: vi.fn().mockResolvedValue([]) };
     await expect(connectProvider(provider)).rejects.toThrow(/no accounts/);
+  });
+});
+
+describe('session persistence', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('saves, loads and clears a session', () => {
+    expect(loadSession()).toBe(null);
+    saveSession({ kind: 'eip6963', rdns: 'io.metamask' });
+    expect(loadSession()).toEqual({ kind: 'eip6963', rdns: 'io.metamask' });
+    clearSession();
+    expect(loadSession()).toBe(null);
+  });
+
+  it('rejects malformed sessions', () => {
+    localStorage.setItem('wp_wallet_session', '{"kind":"weird"}');
+    expect(loadSession()).toBe(null);
+    localStorage.setItem('wp_wallet_session', 'not-json');
+    expect(loadSession()).toBe(null);
+  });
+
+  it('silentConnect returns null when wallet grants nothing', async () => {
+    const provider = { request: vi.fn().mockResolvedValue([]) };
+    expect(await silentConnect(provider)).toBe(null);
+    const p2 = { request: vi.fn().mockResolvedValue(['0xabc']) };
+    expect(await silentConnect(p2)).toBe('0xabc');
+  });
+
+  it('pickProvider matches by rdns and falls back to legacy', () => {
+    const picked = pickProvider({ kind: 'eip6963', rdns: 'io.rabby' }, [rabbyDetail, metamaskDetail]);
+    expect(picked.name).toBe('Rabby');
+    const saved = global.window;
+    global.window = fakeWindow({ ethereum: { isMetaMask: true, request: vi.fn() } });
+    const legacy = pickProvider({ kind: 'legacy' }, []);
+    global.window = saved;
+    expect(legacy.name).toBe('MetaMask');
+    expect(pickProvider({ kind: 'eip6963', rdns: 'io.unknown' }, [metamaskDetail])).toBe(null);
   });
 });
 
