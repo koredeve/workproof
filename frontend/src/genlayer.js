@@ -87,6 +87,33 @@ export async function getReceipt(client, hash) {
   return client.waitForTransactionReceipt({ hash, retries: 60 });
 }
 
+// WorkFaucet bindings — 0.6 GEN per wallet, once per 7 days, enforced on-chain.
+export async function claimFaucet(client) {
+  const hash = await client.writeContract({
+    address: FAUCET_ADDRESS,
+    functionName: 'claim',
+    args: [],
+  });
+  await client.waitForTransactionReceipt({ hash, retries: 400 });
+  return hash;
+}
+
+export async function faucetInfo(client) {
+  return client.readContract({
+    address: FAUCET_ADDRESS,
+    functionName: 'faucet_info',
+    args: [],
+  });
+}
+
+export async function nextClaimAt(client, who) {
+  return client.readContract({
+    address: FAUCET_ADDRESS,
+    functionName: 'next_claim_at',
+    args: [who],
+  });
+}
+
 // Parse the on-chain per-criterion verdict JSON into a typed shape.
 export function parseCriteriaVerdict(jsonStr) {
   if (!jsonStr) return [];

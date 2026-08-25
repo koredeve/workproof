@@ -13,6 +13,9 @@ import {
   draftCriteria,
   getDraft,
   getReceipt,
+  claimFaucet,
+  faucetInfo,
+  nextClaimAt,
 } from './genlayer.js';
 import { useHashRoute, parseRoute, navigate } from './router.js';
 
@@ -667,6 +670,68 @@ function FAQ() {
   );
 }
 
+
+function FaucetCard({ client, me, credit }) {
+  const [info, setInfo] = useState(null);
+  const [next, setNext] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  async function load() {
+    try {
+      setInfo(await faucetInfo(client));
+      if (me) setNext(Number(await nextClaimAt(client, me)));
+    } catch {}
+  }
+  useEffect(() => {
+    load();
+  }, [client, me]);
+
+  async function claim() {
+    setBusy(true);
+    setMsg('');
+    try {
+      await claimFaucet(client);
+      setMsg('0.6 GEN sent to your wallet.');
+      await load();
+    } catch (e) {
+      const m = String(e?.message ?? e);
+      setMsg(m.includes('already claimed') ? 'You already claimed this week — come back in a few days.' : 'Claim failed: ' + m.slice(0, 120));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const cooldownOver = !next || next * 1000 <= Date.now();
+  return (
+    <section className="card" id="faucet">
+      <h2>Need testnet GEN? <span className="tag">faucet</span></h2>
+      <p className="hint">
+        Claim {info ? toGen(info.claim_atto) : '0.6'} GEN once per week — enforced on-chain, no signup.
+        StudioNet GEN has no monetary value; it funds contract escrows while you test.
+      </p>
+      {info && (
+        <p className="hint">
+          Faucet balance: {toGen(info.balance)} GEN · {Number(info.claim_count)} claims served
+        </p>
+      )}
+      {me ? (
+        <div className="row">
+          <button className="btn-stamp" onClick={claim} disabled={busy || !cooldownOver}>
+            {busy ? 'Claiming…' : cooldownOver ? 'Claim 0.6 GEN' : 'Already claimed this week'}
+          </button>
+          {msg && <span className="hint" style={{ margin: 0 }}>{msg}</span>}
+        </div>
+      ) : (
+        <p className="hint">Connect a wallet to claim.</p>
+      )}
+      <p className="hint" style={{ marginTop: 8 }}>
+        Larger amounts: the public faucet at <a href="https://testnet-faucet.genlayer.foundation/" target="_blank" rel="noreferrer">testnet-faucet.genlayer.foundation</a>
+      </p>
+    </section>
+  );
+}
+
 function Dashboard({ contracts, me, credit, onOpenDemo, demoOpen }) {
   const stats = useMemo(() => computeStats(contracts, credit, me), [contracts, credit, me]);
   const cards = [
@@ -865,6 +930,10 @@ export default function App() {
 
       {parsed.view === 'profile' && (
         <ProfileView contracts={contracts} me={me} credit={credit} />
+      )}
+
+      {(parsed.view === 'marketplace' || parsed.view === 'dashboard') && (
+        <FaucetCard client={client} me={me} credit={credit} />
       )}
 
       {parsed.view === 'tx' && (
