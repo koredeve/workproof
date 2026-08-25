@@ -1,0 +1,40 @@
+WORKPROOF — SUBMISSION DETAILS (ready to paste)
+================================================
+
+TITLE (paste into the Title field):
+WorkProof — Freelance work. Verified by consensus.
+
+DESCRIPTION (paste into Notes/Description, 993 chars):
+A trustless work verification and settlement protocol. Clients create contracts with objective acceptance criteria and lock GEN escrow; freelancers submit evidence URLs; GenLayer validators retrieve the evidence from the live web and score every criterion PASS / FAIL / UNVERIFIABLE — agreeing on per-criterion results before the escrow settles automatically. Failed verifications protect the client's funds and open an appeal path: disputes are re-arbitrated strictly under the original, immutable criteria. Criteria cannot be changed after acceptance; double settlement is impossible; unreachable evidence is marked TRANSIENT and retried by consensus, never silently passed. Ships with a React frontend featuring real wallet connection (EIP-6963: MetaMask/Rabby/Phantom/Brave/Coinbase), a criteria-builder with explicit confirmation, an on-chain AI assistant that drafts criteria for client review, per-criterion verification result tables, a validator-pipeline visualization, dashboard stats, and a clearly-labeled demo mode. 22 contract tests + 33 frontend tests. Live on StudioNet: validators retrieved example.com and scored 2/2 criteria PASS with evidence-based reasoning, releasing escrow end-to-end.
+
+EVIDENCE LINK 1 — GitHub Repository:
+https://github.com/koredeve/workproof
+(currently PRIVATE — I flip it to public the moment you say "submit")
+
+EVIDENCE LINK 2 — GenLayer Explorer Contract (main protocol):
+https://explorer-studio.genlayer.com/address/0xeD581E0D4f28c7FAc74Ea3D112C630D55d25B7B3
+
+EVIDENCE LINK 3 — GenLayer Explorer Contract (AI criteria assistant):
+https://explorer-studio.genlayer.com/address/0xe4d2e6079559f04BE4ef17B7461A48e4F81c20B2
+
+EVIDENCE LINK 4 — Live app (Other type):
+https://workproof-gamma.vercel.app
+
+DEPLOYER WALLET (owns both contracts):
+0x0dFD109F7b48dA83524201930Ae9Ebc1d4799CeF
+(credentials: ~/.config/genlayer-portfolio/wallet.txt — never share)
+
+KEY TALKING POINTS IF THERE IS A NOTES FIELD FOR REVIEWERS:
+- Validators fetch submitted evidence URLs from the live web and score each
+  criterion independently — proven on-chain with example.com (2/2 PASS).
+- Criteria are immutable after a freelancer accepts; amendments need both
+  parties' signatures.
+- No owner drain path: withdraw pays only the caller's own credits; the fee
+  is hard-capped at 10% by code.
+- Deadline enforcement uses the GenVM's deterministic transaction clock.
+- Demo mode is clearly labeled and never mixes with chain state.
+
+================================================
+FILE LOCATION OF THIS FILE:
+/Users/mac/Documents/Default Project/workproof/SUBMISSION.txt
+================================================

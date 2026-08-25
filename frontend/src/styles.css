@@ -683,3 +683,13 @@ footer {
 .crittext { font-size: 13.5px; }
 .critreason { color: var(--ink-2); font-size: 12.5px; margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .pstep.active .pdot { animation: none; } }
+
+/* FAQ */
+.faq { display: flex; flex-direction: column; gap: 8px; }
+.faqitem { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.faqitem summary { cursor: pointer; padding: 12px 14px; font-weight: 600; font-size: 14px; list-style: none; position: relative; padding-right: 32px; }
+.faqitem summary::-webkit-details-marker { display: none; }
+.faqitem summary::after { content: '+'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--stamp); font-size: 18px; font-weight: 700; }
+.faqitem[open] summary::after { content: '−'; }
+.faqitem[open] { background: var(--card); border-color: var(--line-strong); }
+.faqitem p { margin: 0; padding: 0 14px 12px; color: var(--ink-2); font-size: 13.5px; line-height: 1.6; }

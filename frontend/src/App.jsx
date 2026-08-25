@@ -615,6 +615,58 @@ function TxExplorer({ client, hash }) {
   );
 }
 
+
+const FAQS = [
+  ["What is WorkProof?",
+   "A trustless work verification and settlement protocol. Clients post work contracts with objective acceptance criteria and lock payment in escrow. Freelancers submit evidence. GenLayer's AI validators check the evidence against the criteria and the escrow settles on the result — no platform in the middle deciding who is right."],
+  ["How is this different from Fiverr or Upwork?",
+   "Those platforms ask you to trust a company's internal review team. WorkProof replaces that with published acceptance criteria, on-chain escrow, and independent AI validators that must reach consensus. Every ruling, and the reasoning behind it, is stored on-chain where anyone can inspect it."],
+  ["How does verification actually work?",
+   "When work is submitted, validators retrieve the evidence URLs from the live web, evaluate every acceptance criterion independently, and score each one PASS, FAIL, or UNVERIFIABLE. The overall result only settles when validators agree on the per-criterion outcomes. If evidence cannot be retrieved, the run is marked TRANSIENT and can be retried — nothing silently passes."],
+  ["What do PASS, FAIL and UNVERIFIABLE mean?",
+   "PASS — the retrieved evidence demonstrates the criterion is met. FAIL — the evidence shows it is not met. UNVERIFIABLE — the evidence was insufficient to decide either way. A contract is PAID only when no criterion fails and at most one is unverifiable."],
+  ["Can the client change the criteria after I start working?",
+   "No. Criteria are locked the moment a freelancer accepts. The only way they change is a mutual amendment: the client proposes, the freelancer explicitly approves. Neither party can change criteria unilaterally."],
+  ["What happens if verification fails?",
+   "The escrow stays locked — nothing is released. The client can refund themselves, or either party can open a dispute. A dispute is re-arbitrated strictly under the original criteria, which the arbitrator cannot rewrite. The outcome is either PAID (freelancer) or REFUNDED (client)."],
+  ["Is my wallet safe here?",
+   "Your keys never leave your wallet. Every transaction requires your explicit approval popup, and the app only ever asks your wallet to interact with the two WorkProof contracts. There are no token approvals (escrow uses the native GEN token), no signature harvesting, and the contract has no admin function that can move your escrow."],
+  ["Who owns the escrow while work is in progress?",
+   "The contract itself. The budget is locked at creation and can only move along fixed paths: release to the freelancer on verified success, refund to the client on failure, cancellation, or expiry. The protocol owner cannot touch it."],
+  ["Do I need GEN to participate?",
+   "You need GEN only to fund a contract's escrow when posting. Accepting, submitting evidence, verifying, disputing and rating are free — the network covers transaction fees. StudioNet is gasless: a 0 GEN balance still lets you work."],
+  ["Is this real money?",
+   "No — this deployment runs on StudioNet, GenLayer's test network. GEN here is a test token with no monetary value. The mechanics are identical to what a mainnet deployment would use."],
+  ["What are the deadlines?",
+   "Clients can set a deadline when creating a contract. It is enforced on-chain: submissions after the deadline revert, and anyone can trigger an automatic refund of an expired contract that was never started."],
+  ["Can I be both the client and the freelancer?",
+   "No — a contract requires two different addresses. That separation is what makes independent verification meaningful."],
+  ["What is the protocol fee?",
+   "A small fee, capped at 10% and visible in the contract code, is deducted from the freelancer's payout when a contract settles successfully. Refunds are never charged a fee."],
+  ["Can I use this on my phone?",
+   "Yes. The interface is fully responsive — browsing, accepting, submitting evidence and verifying all work on mobile with wallet apps like MetaMask and Rabby."],
+  ["What is the demo mode?",
+   "The Dashboard offers a demo contract that walks through the full lifecycle with simulated data. It is clearly labeled DEMO at every step and is never mixed with real blockchain state."],
+  ["What if I still have a problem?",
+   "Every action shows its transaction hash — click details to open the transaction view, or the block explorer, and share that hash. On-chain state is the source of truth: if the contract shows PAID, the payment happened; if it shows FAILED, the escrow is still locked."],
+];
+
+function FAQ() {
+  return (
+    <section className="card" id="faq">
+      <h2>Frequently asked questions</h2>
+      <div className="faq">
+        {FAQS.map(([q, a]) => (
+          <details key={q} className="faqitem">
+            <summary>{q}</summary>
+            <p>{a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Dashboard({ contracts, me, credit, onOpenDemo, demoOpen }) {
   const stats = useMemo(() => computeStats(contracts, credit, me), [contracts, credit, me]);
   const cards = [
@@ -886,6 +938,8 @@ export default function App() {
         <button className="ghost" onClick={refresh}>Refresh</button>
       </section>
       )}
+
+      {parsed.view !== 'tx' && <FAQ />}
 
       <footer>
         <a href="https://github.com/koredeve/workproof" target="_blank" rel="noreferrer">source</a>
