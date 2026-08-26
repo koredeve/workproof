@@ -779,6 +779,7 @@ export default function App() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [tx, setTx] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const setStage = (stage, extra = {}) => setTx((t) => ({ ...(t ?? {}), stage, ...extra }));
 
   async function refresh() {
@@ -811,6 +812,24 @@ export default function App() {
     refresh();
   }, [me]);
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [route]);
+
+  async function withdraw() {
+    setBusy('withdraw');
+    setError('');
+    try {
+      const hash = await writeAndWait(client, 'withdraw', []);
+      setTx({ stage: 4, label: 'Withdrawal sent to your wallet.', hash });
+      await refresh();
+    } catch (e) {
+      setTx({ stage: 'failed', label: 'Withdraw failed', error: String(e?.message ?? e) });
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function act(fn, args, doneMsg) {
     setBusy(fn + args.join('|'));
     setError('');
@@ -838,12 +857,19 @@ export default function App() {
     <div className="wrap">
       <header>
         <div className="topbar">
-          <a className="wordmark" href="#top">Work<em>Proof</em></a>
-          <nav className="topnav">
+          <a className="wordmark" href="#/marketplace">Work<em>Proof</em></a>
+          <nav className="topnav" aria-label="Main">
             <button className={'navbtn' + (parsed.view === 'marketplace' ? ' on' : '')} onClick={() => navigate('/marketplace')}>Marketplace</button>
             <button className={'navbtn' + (parsed.view === 'create' ? ' on' : '')} onClick={() => navigate('/create')}>Create</button>
             <button className={'navbtn' + (parsed.view === 'dashboard' ? ' on' : '')} onClick={() => navigate('/dashboard')}>Dashboard</button>
             <button className={'navbtn' + (parsed.view === 'profile' ? ' on' : '')} onClick={() => navigate('/profile')}>Profile</button>
+          </nav>
+          <div className="hdr-right">
+            {credit > 0 && (
+              <button className="btn-ghost" onClick={withdraw} disabled={busy === 'withdraw'}>
+                Withdraw {credit} GEN
+              </button>
+            )}
             <WalletModal
               me={me}
               onUnlock={(c, address) => {
@@ -856,7 +882,30 @@ export default function App() {
                 setCredit(0);
               }}
             />
-          </nav>
+            <button
+              className="hamburger"
+              aria-label="Menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              <span /><span /><span />
+            </button>
+          </div>
+          {menuOpen && (
+            <nav className="mobilemenu" aria-label="Mobile">
+              {[['Marketplace', '/marketplace'], ['Create', '/create'], ['Dashboard', '/dashboard'], ['Profile', '/profile']].map(([label, path]) => (
+                <button key={path} className={'mmitem' + (parsed.view === path.split('/')[1] ? ' on' : '')}
+                  onClick={() => { navigate(path); setMenuOpen(false); }}>
+                  {label}
+                </button>
+              ))}
+              {credit > 0 && (
+                <button className="mmitem" onClick={() => { setMenuOpen(false); withdraw(); }}>
+                  Withdraw {credit} GEN
+                </button>
+              )}
+            </nav>
+          )}
         </div>
 
         {parsed.view === 'marketplace' && (
