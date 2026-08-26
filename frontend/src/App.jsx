@@ -718,7 +718,7 @@ function FaucetCard({ client, me, credit }) {
       {me ? (
         <div className="row">
           <button className="btn-stamp" onClick={claim} disabled={busy || !cooldownOver}>
-            {busy ? 'Claiming…' : cooldownOver ? 'Claim 0.6 GEN' : 'Already claimed this week'}
+            {busy ? 'Claiming…' : cooldownOver ? `Claim ${info ? toGen(info.claim_atto) : '0.1'} GEN` : 'Already claimed this week'}
           </button>
           {msg && <span className="hint" style={{ margin: 0 }}>{msg}</span>}
         </div>
