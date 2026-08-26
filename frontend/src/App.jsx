@@ -726,7 +726,7 @@ function FaucetCard({ client, me, credit }) {
     setMsg('');
     try {
       await claimFaucet(client);
-      setMsg('0.6 GEN sent to your wallet.');
+      setMsg(`Claim recorded — ${info ? toGen(info.claim_atto) : '0.1'} GEN will appear in your wallet within a couple of minutes (it settles after finalization).`);
       await load();
     } catch (e) {
       const m = String(e?.message ?? e);
@@ -741,8 +741,9 @@ function FaucetCard({ client, me, credit }) {
     <section className="card" id="faucet">
       <h2>Need testnet GEN? <span className="tag">faucet</span></h2>
       <p className="hint">
-        Claim {info ? toGen(info.claim_atto) : '0.6'} GEN once per week — enforced on-chain, no signup.
-        StudioNet GEN has no monetary value; it funds contract escrows while you test.
+        Claim {info ? toGen(info.claim_atto) : '0.1'} GEN once per week — enforced on-chain, no signup.
+        Payouts land in your wallet a minute or two after claiming. StudioNet GEN has no monetary
+        value; it funds contract escrows while you test.
       </p>
       {info && (
         <p className="hint">
