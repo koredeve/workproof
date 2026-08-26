@@ -199,8 +199,11 @@ def test_verification_pass_pays_freelancer(direct_vm, direct_deploy, direct_alic
     contract.verify_work("c1")
 
     c = contract.get_contract("c1")
-    assert c["status"] == "PAID"
+    assert c["status"] == "VERIFIED"
     assert c["verdict_overall"] == "PASSED"
+    contract.approve_release("c1")
+    c = contract.get_contract("c1")
+    assert c["status"] == "PAID"
     verdict_criteria = json.loads(c["verdict_criteria"])
     assert len(verdict_criteria) == 4
     assert verdict_criteria[0]["result"] == "PASS"
@@ -292,7 +295,7 @@ def test_dispute_guards(direct_vm, direct_deploy, direct_alice, direct_bob, dire
         with direct_vm.expect_revert("Only contract parties"):
             contract.open_dispute("c1", "not my contract")
 
-    with direct_vm.expect_revert("after a failed verification"):
+    with direct_vm.expect_revert("Disputes are opened after verification"):
         contract.open_dispute("c1", "too early")
 
     _setup_submitted(direct_vm, contract, direct_alice, direct_bob, cid="c9")
@@ -352,6 +355,7 @@ def test_withdraw_moves_credits_and_zeroes_them(direct_vm, direct_deploy, direct
     _mock_web(direct_vm)
     direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
     contract.verify_work("c1")
+    contract.approve_release("c1")
 
     with direct_vm.prank(direct_bob):
         contract.withdraw()
@@ -437,6 +441,7 @@ def test_protocol_fee_on_settlement(direct_vm, direct_deploy, direct_alice, dire
     _mock_web(direct_vm)
     direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
     contract.verify_work("c1")
+    contract.approve_release("c1")
 
     assert contract.get_contract("c1")["status"] == "PAID"
     expected_worker = BUDGET - (BUDGET * 500 // 10000)
@@ -509,6 +514,7 @@ def test_rating_and_reputation(direct_vm, direct_deploy, direct_alice, direct_bo
     _mock_web(direct_vm)
     direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
     contract.verify_work("c1")
+    contract.approve_release("c1")
 
     with direct_vm.prank(direct_bob):
         with direct_vm.expect_revert("Only the contract client"):
@@ -524,3 +530,73 @@ def test_rating_and_reputation(direct_vm, direct_deploy, direct_alice, direct_bo
     assert rep["count"] == 1
     assert rep["avg_rating_x10"] == 40
     assert contract.reputation_of(direct_alice)["count"] == 0
+
+
+def test_client_can_dispute_a_verified_contract_before_release(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """A PASSED verdict enters a review window: the client can dispute before release."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _setup_submitted(direct_vm, contract, direct_alice, direct_bob)
+    _mock_web(direct_vm)
+    direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
+    contract.verify_work("c1")
+    assert contract.get_contract("c1")["status"] == "VERIFIED"
+
+    with direct_vm.expect_revert("A dispute reason is required"):
+        contract.open_dispute("c1", " ")
+
+    contract.open_dispute("c1", "The submitted page impersonates our confirmation flow.")
+    assert contract.get_contract("c1")["status"] == "DISPUTED"
+
+    direct_vm.mock_llm(DISPUTE_PROMPT, json.dumps({"for_worker": False, "reasoning": "Evidence does not satisfy the criteria."}))
+    contract.resolve_dispute("c1")
+
+    c = contract.get_contract("c1")
+    assert c["status"] == "REFUNDED"
+    assert contract.credit_of(direct_alice) == BUDGET
+    assert contract.credit_of(direct_bob) == 0
+
+
+def test_dispute_on_verified_upholds_worker(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Client disputes a VERIFIED result; validators uphold it → freelancer paid."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _setup_submitted(direct_vm, contract, direct_alice, direct_bob)
+    _mock_web(direct_vm)
+    direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
+    contract.verify_work("c1")
+
+    contract.open_dispute("c1", "We believe the criteria were not met.")
+    direct_vm.mock_llm(DISPUTE_PROMPT, json.dumps({"for_worker": True, "reasoning": "Evidence satisfies the criteria."}))
+    contract.resolve_dispute("c1")
+
+    assert contract.get_contract("c1")["status"] == "PAID"
+    assert contract.credit_of(direct_bob) == BUDGET
+
+
+def test_force_release_blocked_inside_review_window(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """The freelancer cannot force release while the client review window is open."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _setup_submitted(direct_vm, contract, direct_alice, direct_bob)
+    _mock_web(direct_vm)
+    direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
+    contract.verify_work("c1")
+
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("review window is still open"):
+            contract.force_release("c1")
+    assert contract.get_contract("c1")["status"] == "VERIFIED"
+
+
+def test_release_guards(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Only the client approves release; approve requires VERIFIED state."""
+    contract = _deploy(direct_vm, direct_deploy, direct_alice)
+    _setup_submitted(direct_vm, contract, direct_alice, direct_bob)
+    _mock_web(direct_vm)
+    direct_vm.mock_llm(VERIFY_PROMPT, ALL_PASS)
+    contract.verify_work("c1")
+
+    with direct_vm.prank(direct_bob):
+        with direct_vm.expect_revert("Only the contract client"):
+            contract.approve_release("c1")
+    contract.approve_release("c1")
+    with direct_vm.expect_revert("requires a verified contract"):
+        contract.approve_release("c1")

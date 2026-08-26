@@ -263,6 +263,40 @@ function ContractCard({ c, expanded, onToggle, client, me, onAction, busy, demo 
         <RateBox key="rate" c={c} onAction={onAction} busy={busy} />
       );
     }
+    if (c.status === STATUS.VERIFIED && isClient && !demo) {
+      actions.push(
+        <div key="rel" className="submitbox">
+          <p className="hint">Verification PASSED — the escrow is still locked during your review window. Release when satisfied, or open a dispute if the evidence gamed the criteria. The freelancer can force release after 3 days.</p>
+          <div className="row">
+            <button className="btn-stamp" disabled={!!busy}
+              onClick={() => onAction('approve_release', [c.id], 'Released — freelancer credited.')}>
+              Approve &amp; release
+            </button>
+            <button className="danger" disabled={!!busy}
+              onClick={() => onAction('open_dispute', [c.id, disputeReason || 'Disputed during review window'], 'Dispute opened — arbitration under the original criteria.')}>
+              Dispute
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (c.status === STATUS.VERIFIED && isWorker && !demo) {
+      actions.push(
+        <div key="fr" className="submitbox">
+          <p className="hint">Verified — waiting for the client to release, or force release after the 3-day review window. You may also dispute.</p>
+          <div className="row">
+            <button className="btn-ghost" disabled={!!busy}
+              onClick={() => onAction('force_release', [c.id], 'Review window expired — released to you.')}>
+              Force release
+            </button>
+            <button className="danger" disabled={!!busy}
+              onClick={() => onAction('open_dispute', [c.id, disputeReason || 'Disputed during review window'], 'Dispute opened.')}>
+              Dispute
+            </button>
+          </div>
+        </div>
+      );
+    }
     if (c.status === STATUS.FAILED && isClient) {
       actions.push(
         <div key="ref" className="row">
@@ -380,7 +414,7 @@ function ContractCard({ c, expanded, onToggle, client, me, onAction, busy, demo 
             </div>
           )}
 
-          {['VERIFYING', 'PAID', 'FAILED', 'DISPUTED', 'REFUNDED'].includes(c.status) && (
+          {['VERIFYING', 'VERIFIED', 'PAID', 'FAILED', 'DISPUTED', 'REFUNDED'].includes(c.status) && (
             <div>
               <span className="sectlabel">GenLayer verification</span>
               <VerificationPipeline status={c.status} />

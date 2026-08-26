@@ -15,6 +15,7 @@ STATUS_OPEN = "OPEN"
 STATUS_ACCEPTED = "ACCEPTED"
 STATUS_SUBMITTED = "SUBMITTED"
 STATUS_VERIFYING = "VERIFYING"
+STATUS_VERIFIED = "VERIFIED"
 STATUS_PAID = "PAID"
 STATUS_FAILED = "FAILED"
 STATUS_DISPUTED = "DISPUTED"
@@ -25,6 +26,7 @@ STATUS_EXPIRED = "EXPIRED"
 PROTOCOL_FEE_BPS_CAP = 1000  # max 10%
 
 MIN_BUDGET_ATTO = u256(10 ** 17)
+FORCE_RELEASE_DELAY_SECONDS = 3 * 24 * 3600  # client review window after VERIFIED
 MAX_EVIDENCE_URLS = 3
 EVIDENCE_CHARS = 1500
 
@@ -82,6 +84,7 @@ class Contract:
 	verdict_overall: str
 	verdict_criteria: str
 	verdict_reasoning: str
+	verified_ts: u256
 	amendment_pending: str
 	rating: u256
 	rated: bool
@@ -148,6 +151,7 @@ class WorkProof(gl.Contract):
 			verdict_overall="",
 			verdict_criteria="",
 			verdict_reasoning="",
+			verified_ts=u256(0),
 			amendment_pending="",
 			rating=u256(0),
 			rated=False,
@@ -414,10 +418,33 @@ class WorkProof(gl.Contract):
 		c.verdict_reasoning = str(result["reasoning"])
 
 		if result["overall"] == "PASSED":
-			self._settle_to_worker(c)
-			c.status = STATUS_PAID
+			# Enter the client review window: escrow stays locked until the
+			# client releases, the window expires, or a dispute is resolved.
+			c.verified_ts = u256(int(time.time()))
+			c.status = STATUS_VERIFIED
 		else:
 			c.status = STATUS_FAILED
+
+	@gl.public.write
+	def approve_release(self, contract_id: str) -> None:
+		c = self._get(contract_id)
+		self._require_client(c)
+		if c.status != STATUS_VERIFIED:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Release requires a verified contract")
+		self._settle_to_worker(c)
+		c.status = STATUS_PAID
+
+	@gl.public.write
+	def force_release(self, contract_id: str) -> None:
+		c = self._get(contract_id)
+		if str(gl.message.sender_address) != c.freelancer:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only the freelancer may force release")
+		if c.status != STATUS_VERIFIED:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Release requires a verified contract")
+		if u256(int(time.time())) < c.verified_ts + u256(FORCE_RELEASE_DELAY_SECONDS):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} The client review window is still open")
+		self._settle_to_worker(c)
+		c.status = STATUS_PAID
 
 	@gl.public.write
 	def open_dispute(self, contract_id: str, reason: str) -> None:
@@ -425,8 +452,8 @@ class WorkProof(gl.Contract):
 		sender = str(gl.message.sender_address)
 		if sender != str(c.client) and sender != c.freelancer:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only contract parties may open a dispute")
-		if c.status != STATUS_FAILED:
-			raise gl.vm.UserError(f"{ERROR_EXPECTED} Disputes are opened after a failed verification")
+		if c.status not in (STATUS_FAILED, STATUS_VERIFIED):
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} Disputes are opened after verification")
 		if not reason.strip():
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} A dispute reason is required")
 		c.dispute_reason = str(reason)
@@ -546,6 +573,7 @@ class WorkProof(gl.Contract):
 			"verdict_overall": c.verdict_overall,
 			"verdict_criteria": c.verdict_criteria,
 			"verdict_reasoning": c.verdict_reasoning,
+			"verified_ts": c.verified_ts,
 			"amendment_pending": c.amendment_pending,
 			"rating": c.rating,
 			"rated": c.rated,

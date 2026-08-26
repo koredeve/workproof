@@ -5,7 +5,7 @@ import { createClient, createAccount } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
-const CONTRACT_ADDRESS = '0xeD581E0D4f28c7FAc74Ea3D112C630D55d25B7B3';
+const CONTRACT_ADDRESS = '0x6E56eDe7AC0371Ace451618063d50903DdC36A27';
 const KEY = process.env.SMOKE_PRIVATE_KEY;
 if (!KEY) {
   console.error('Set SMOKE_PRIVATE_KEY');
