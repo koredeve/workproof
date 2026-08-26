@@ -2,7 +2,12 @@ import { createClient, createAccount } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { explorerAddressUrl } from './lib.js';
 
-export const CONTRACT_ADDRESS = '0x6E56eDe7AC0371Ace451618063d50903DdC36A27';
+export const CONTRACT_ADDRESS =
+  import.meta.env.VITE_CONTRACT_ADDRESS || '0x6E56eDe7AC0371Ace451618063d50903DdC36A27';
+export const ASSISTANT_ADDRESS =
+  import.meta.env.VITE_ASSISTANT_ADDRESS || '0xe4d2e6079559f04BE4ef17B7461A48e4F81c20B2';
+export const FAUCET_ADDRESS =
+  import.meta.env.VITE_FAUCET_ADDRESS || '0x5aB77Faab78e9c2578a1473B1326787e51cb2F9e';
 export const EXPLORER_URL = explorerAddressUrl(CONTRACT_ADDRESS);
 
 export const STATUS = {
