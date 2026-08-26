@@ -693,3 +693,126 @@ footer {
 .faqitem[open] summary::after { content: '−'; }
 .faqitem[open] { background: var(--card); border-color: var(--line-strong); }
 .faqitem p { margin: 0; padding: 0 14px 12px; color: var(--ink-2); font-size: 13.5px; line-height: 1.6; }
+
+/* ---------- staged transaction banner (base — was missing) ---------- */
+.txstages { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin-bottom: 4px; }
+.txstage {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: var(--card);
+}
+.txstage.done { color: var(--stamp-ink); border-color: var(--stamp); background: var(--stamp-wash); }
+.txstage.active { color: var(--ink); border-color: var(--amber); background: var(--amber-wash); }
+.txstage.failed { color: var(--dispute); border-color: --dispute; }
+.txerr { margin-top: 6px; font-size: 12px; }
+.txerr code { display: block; margin-top: 4px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 11px; white-space: pre-wrap; word-break: break-word; }
+
+/* ---------- mobile refinement layer ---------- */
+@media (max-width: 760px) {
+  .wrap { padding: 0 14px 56px; }
+
+  /* header: brand + wallet on line 1, nav scrolls on line 2 */
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .topnav {
+    width: 100%;
+    order: 3;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topnav::-webkit-scrollbar { display: none; }
+  .topnav > * { flex: 0 0 auto; }
+  .hdr-right { margin-left: auto; }
+
+  /* hero stacks tight */
+  .hero { padding: 24px 0 20px; gap: 20px; }
+  .hero .lede { font-size: 15px; }
+  .hero-ctas { width: 100%; }
+  .hero-ctas > * { flex: 1 1 100%; text-align: center; justify-content: center; }
+
+  /* forms: full-width controls, 46px touch targets, no iOS zoom */
+  input, textarea, select { font-size: 16px; }
+  .row { gap: 10px; }
+  .row > input, .row > textarea {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    min-height: 46px;
+  }
+  .row > button:not(.linkish):not(.chip) {
+    flex: 1 1 100%;
+    min-height: 46px;
+  }
+  .actions > button, .actions > .row > button { width: 100%; min-height: 46px; }
+  .actions > .submitbox button { width: 100%; }
+
+  /* docket rows: stacked case-file grid */
+  .jobhead {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "seal seal"
+      "title title"
+      "id budget";
+    gap: 6px 12px;
+    padding: 12px 14px;
+    align-items: center;
+  }
+  .jobhead .jseal { grid-area: seal; justify-self: start; }
+  .jobhead .jtitle { grid-area: title; font-size: 15px; line-height: 1.35; white-space: normal; }
+  .jobhead .jid { grid-area: id; font-size: 10.5px; }
+  .jobhead .jbudget { grid-area: budget; font-size: 15px; }
+  .jbody { padding: 12px 14px 14px; }
+  .parties { flex-direction: column; gap: 8px; }
+  .critrow { flex-direction: column; gap: 6px; }
+  .critbadge { align-self: flex-start; }
+
+  /* verification pipeline goes vertical */
+  .pipeline { flex-direction: column; align-items: stretch; gap: 0; }
+  .pstep { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+  .pline { display: none; }
+  .plabel { font-size: 13px; }
+
+  /* chips scroll horizontally instead of wrapping */
+  .chips { overflow-x: auto; flex-wrap: nowrap; width: 100%; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { min-height: 36px; display: inline-flex; align-items: center; }
+
+  /* stats: fixed 2 columns */
+  .statsgrid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+  .statvalue { font-size: 19px; }
+  .statlabel { font-size: 11px; }
+
+  /* wallet modal becomes a bottom sheet */
+  .overlay { align-items: flex-end; padding: 0; }
+  .modal {
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .notice, .error { font-size: 13px; }
+  .how-strip { gap: 10px; }
+  .faqitem summary { font-size: 13.5px; padding-right: 36px; }
+
+  footer { flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+}
+
+@media (max-width: 380px) {
+  .hero h1 { font-size: 26px; }
+  .statsgrid { gap: 6px; }
+}
+
+/* coarse pointers: bigger touch targets everywhere */
+@media (pointer: coarse) {
+  button:not(.linkish):not(.chip), .chip, .walletrow, .faqitem summary { min-height: 44px; }
+  .chip { padding: 8px 14px; }
+}

@@ -1,0 +1,44 @@
+=======================================================
+SUBMISSION STATUS — WHAT TO EDIT IN THE PORTAL (Aug 25)
+=======================================================
+
+YOUR 4 SUBMISSIONS:
+
+1) SPORTS SCORE ORACLE — "Action needed" → ALREADY FIXED & RESUBMITTED by you.
+   Nothing more to do (unless the steward asks again).
+
+2) PREDICTION MARKET RESOLVER — Pending review → UPDATE THE EVIDENCE LINK.
+   Old link points to 0x80e1...A8c3 (pre-fix deployment).
+   Edit the GenLayer Explorer Contract evidence item to:
+   https://explorer-studio.genlayer.com/address/0xda2b6c7f72603197E33515e61fa7D1eAce5A8c3C
+   Optional note to add:
+   "Hardened after internal audit: markets resolving with no bets on the
+   winning side now auto-void with full refunds, preventing locked pools."
+
+3) FLIGHT DELAY INSURER — Pending review → UPDATE THE EVIDENCE LINK + ADD NOTE.
+   The contract was hardened (same vulnerability class the steward flagged on
+   sports oracle): flight data sources are owner-approved and permanently bound
+   at policy purchase; check_status fetches only the bound source.
+   Edit the GenLayer Explorer Contract evidence item to:
+   https://explorer-studio.genlayer.com/address/0x74c65E2F275b7D3DBf9145C5A37D062Df6228005
+   Optional note to add:
+   "Hardened after internal audit: flight data sources are owner-approved
+   (approve_source/revoke_source) and permanently bound at policy purchase —
+   check_status fetches only the bound source, so no caller can trigger payouts
+   from a fabricated flight-status URL. A live demo policy is deployed."
+
+4) PRICE TRUTH FEED — Pending review → NO CHANGES NEEDED.
+   Audited safe: sources are set by the owner via set_sources and update_price
+   accepts no caller URL. Submission stands as-is.
+
+=======================================================
+FUTURE SUBMISSIONS (not yet submitted — hardened in advance):
+- bug-bounty-judge: PoC URLs restricted to owner-approved domains + bounty
+  pool is now funded (awards deduct from a real escrow).
+- charity-milestone-vault: owner project vetting gate — donations and
+  evidence locked until the organization is verified.
+- news-claim-checker: optional owner-managed source allowlist
+  (open by default; restrictable to vetted domains).
+Deploy fresh copies when their submission weeks arrive — ask and I'll deploy
++ seed + hand you the new links.
+=======================================================

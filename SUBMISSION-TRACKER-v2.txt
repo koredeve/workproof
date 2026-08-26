@@ -1,0 +1,197 @@
+GENLAYER PORTFOLIO — SUBMISSION TRACKER (v2, post-security-hardening)
+Saved: Downloads + Desktop · Aug 26
+Form fields: Title (optional) / Notes-Description (max 1000 chars) / Evidence links
+
+STATUS LEGEND:
+[SUBMITTED-FIX-RESUBMITTED] = steward flagged, fixed, you resubmitted
+[SUBMITTED-PENDING-EDIT]    = pending review, edit evidence link in portal (see below)
+[SUBMITTED-PENDING-OK]      = pending review, no changes needed
+[READY]                     = hardened, freshly deployed, ready to submit
+
+====================================================
+1) SPORTS SCORE ORACLE — [SUBMITTED-FIX-RESUBMITTED]
+====================================================
+Title:
+Sports Score Oracle - AI-Validated Final Scores On-Chain
+
+Notes/Description:
+Publishes finalized sports results on-chain by reading live scoreboard pages through GenLayer's AI-validator consensus. The leader fetches the scoreboard URL; independent validators must both see status FINAL and exactly identical scores before a result finalizes - no single-source trust. HTTP 4xx/5xx are classified EXTERNAL/TRANSIENT so consensus handles failures deterministically. SECURITY HARDENED: every game is permanently bound at creation to a scoreboard URL under an owner-approved source prefix - submit_result fetches only the bound source, so no caller can settle a game against fabricated JSON. 11 direct tests; live on StudioNet with a demo game.
+
+GitHub:
+https://github.com/koredeve/sports-score-oracle
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x2B9342B4Fb3b6C6C84E2A17B5F532080034a7D9E
+
+====================================================
+2) PREDICTION MARKET RESOLVER — [SUBMITTED-PENDING-EDIT]
+====================================================
+Title:
+Prediction Market Resolver - Trustless Event Betting with AI Consensus
+
+Notes/Description:
+Bet GEN on real-world events; markets resolve when AI validators independently read a pinned source page and agree on the exact outcome (YES/NO/UNCLEAR). Winners claim pro-rata payouts via integer math and a claim pattern that avoids unbounded iteration; owners can void open markets for full refunds. UNCLEAR verdicts refuse settlement, malformed LLM output raises LLM_ERROR, and GenLayer's native appeal window protects against bad resolutions. HARDENED: markets resolving with no bets on the winning side auto-void with full refunds, preventing locked pools. 13 direct tests; deployed live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/prediction-market-resolver
+
+Explorer (CURRENT — UPDATE THE PORTAL LINK TO THIS):
+https://explorer-studio.genlayer.com/address/0xda2b6c7f72603197E33515e61fa7D1eAce5A8c3C
+
+====================================================
+3) PRICE TRUTH FEED — [SUBMITTED-PENDING-OK]
+====================================================
+Title:
+Price Truth Feed - Manipulation-Resistant Multi-Source Oracle
+
+Notes/Description:
+An on-chain price feed that fetches each pair from 3+ live sources and stores the outlier-resistant median. Validators refetch independently and accept only within 0.5% tolerance using float-free integer math - consensus survives source disagreement without trusting any single API. Unstable or failing sources are skipped; all-fail raises TRANSIENT for clean rotation. A foundational DeFi primitive other contracts can compose. Sources are set by the contract owner; update_price accepts no caller URL. 7 direct tests; live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/price-truth-feed
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x1E7D3799CaaaD45d60859F17672B197A243cc018
+
+====================================================
+4) FLIGHT DELAY INSURER — [SUBMITTED-PENDING-EDIT]
+====================================================
+Title:
+Flight Delay Insurer - Parametric Payouts from Live Flight Data
+
+Notes/Description:
+Parametric flight insurance with no claims paperwork: pay a premium, and if live flight data shows cancellation, diversion, or delay beyond your threshold, the 10x coverage credits automatically. Validators refetch flight status and must agree on the triggered boolean (plus/minus 10 min jitter tolerance). Premiums, coverage, and payouts are atto-denominated u256 with internal credits and withdraw. HARDENED: flight data sources are owner-approved (approve_source/revoke_source) and permanently bound at policy purchase - check_status fetches only the bound source, so no caller can trigger payouts from a fabricated flight-status URL. 11 direct tests; live demo policy on StudioNet.
+
+GitHub:
+https://github.com/koredeve/flight-delay-insurer
+
+Explorer (CURRENT — UPDATE THE PORTAL LINK TO THIS):
+https://explorer-studio.genlayer.com/address/0x74c65E2F275b7D3DBf9145C5A37D062Df6228005
+
+====================================================
+5) JUDGMENT ESCROW — [READY]
+====================================================
+Title:
+Judgment Escrow - AI-Arbitrated Freelance Payments
+
+Notes/Description:
+Freelance escrow where disputes are settled by meaning, not lawyers. The client funds a job on-chain; a worker accepts and submits the deliverable; on dispute, AI validators compare the deliverable against the written requirements and must agree exactly on who wins before funds release. Access control restricts every transition to the correct party. No external URL fetching - the judgment runs entirely on stored, on-chain inputs. 11 direct tests; live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/judgment-escrow
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x2AFdCD2fA5E27359CDF4f07B7674258D4328746C
+
+====================================================
+6) NEWS CLAIM CHECKER — [READY]
+====================================================
+Title:
+News Claim Checker - Staked Fact-Checking with Verdicts
+
+Notes/Description:
+Submit any public claim with a stake and a source URL; AI validators fetch the page and rule TRUE / FALSE / MISLEADING / UNVERIFIABLE, agreeing exactly on the verdict category before it finalizes. Verdicts are stored on-chain with confidence and reasoning; unverifiable claims forfeit the stake to deter spam. HARDENED: the owner can optionally restrict claim sources to vetted domains (open by default). Malformed model output surfaces as LLM_ERROR rather than locking bad state. 13 direct tests; live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/news-claim-checker
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x508Fec47Df959Da85EB88aFdDA16274310842798
+
+====================================================
+7) CONTENT MODERATION COURT — [READY]
+====================================================
+Title:
+Content Moderation Court - Community Policy by Validator Juries
+
+Notes/Description:
+Flagged posts are tried against a community policy document by AI validators acting as a jury; verdicts require exact agreement on the violation decision, with the appeal window provided natively by GenLayer's Optimistic Democracy. Violations route the author's stake to the flagger; clean posts return it. No external URL fetching - judgment runs on stored on-chain content against the owner-set policy. 9 direct tests; live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/content-moderation-court
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x6C5Ee86E3B343a28B18cE8e6d4E19adFDCE2EBbB
+
+====================================================
+8) RENTAL DEPOSIT REFEREE — [READY]
+====================================================
+Title:
+Rental Deposit Referee - Fair Deposit Splits from Photo Evidence
+
+Notes/Description:
+Landlord funds the deposit on-chain; both parties submit move-in and move-out photo descriptions; AI validators arbitrate the tenant's responsibility percentage against the lease terms, agreeing within 10 percentage points before the split finalizes. Each party withdraws their share directly - no arguments, no intermediaries. No external URL fetching - arbitration runs on stored on-chain evidence descriptions. 9 direct tests; live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/rental-deposit-referee
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x119a461Ea6d4C76a35ef1D535BdDb2A7D45a4045
+
+====================================================
+9) WEATHER SHIELD — [READY]
+====================================================
+Title:
+Weather Shield - Parametric Crop and Event Insurance
+
+Notes/Description:
+Parametric insurance for rain, wind, snow, and low temperatures: pick a location, peril, and threshold; when live weather data crosses it, coverage releases automatically. Validators refetch conditions and agree on the triggered boolean with a tight tolerance; signed values handle sub-zero temperatures. HARDENED: the weather data source is set by the contract owner - check_weather accepts no caller URL. Premiums are coverage/10, all accounting in atto u256. 10 direct tests; live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/weather-shield
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0xD2b7ebC3abD0d069eb9A37F17ADD37136c919618
+
+====================================================
+10) BUG BOUNTY JUDGE — [READY]
+====================================================
+Title:
+Bug Bounty Judge - Decentralized Triage and Severity Grading
+
+Notes/Description:
+Security researchers submit reports; AI validators judge validity against the program rules and grade severity (critical/high/medium/low), agreeing exactly on validity and within one severity rank before awards release automatically. HARDENED: the bounty pool is now funded with real GEN (fund_pool) and awards deduct from it - no unbacked credits; PoC URLs are restricted to owner-approved domains so researchers cannot fabricate evidence pages. Solves spam triage and payout delay with auditable on-chain rulings. 14 direct tests; live on StudioNet with a funded 60 GEN demo pool.
+
+GitHub:
+https://github.com/koredeve/bug-bounty-judge
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x39d69D763903501aEd4fC0a36183460439d6F420
+
+====================================================
+11) REPUTATION PASSPORT — [READY]
+====================================================
+Title:
+Reputation Passport - Portable, Spam-Resistant Peer Reputation
+
+Notes/Description:
+A composable reputation primitive: profiles receive 1-5 star peer reviews; AI validators judge each review's authenticity (exact agreement) and only authentic reviews feed an O(1) running average per subject. Lending, gig-work, and marketplace contracts can query one trustworthy score instead of rebuilding trust systems. No external URL fetching - authenticity judgment runs on stored on-chain reviews. Self-reviews and out-of-range ratings are rejected at the contract level. 12 direct tests; live on StudioNet.
+
+GitHub:
+https://github.com/koredeve/reputation-passport
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x3c8301542b24eC2A7192Fa4BcE5C33Dd7212209f
+
+====================================================
+12) CHARITY MILESTONE VAULT — [READY]
+====================================================
+Title:
+Charity Milestone Vault - Evidence-Verified Tranche Releases
+
+Notes/Description:
+Donations pool on-chain and unlock only as AI validators confirm evidence pages showing each milestone was genuinely completed - exact agreement on completion before any tranche releases to the creator. HARDENED: projects require platform-owner vetting before donations or evidence are accepted, closing the creator-controlled-evidence risk. Donors can be fully refunded if a project is cancelled before payouts. 14 direct tests; live on StudioNet with a vetted demo project.
+
+GitHub:
+https://github.com/koredeve/charity-milestone-vault
+
+Explorer (CURRENT):
+https://explorer-studio.genlayer.com/address/0x4B03D31FD3d1b5D04055C9f9dcBdF704294e6c2F
+
+====================================================
+PORTAL EDIT CHECKLIST (for the 2 pending submissions that changed):
+[ ] Prediction Market Resolver: replace explorer link with 0xda2b6c7f...A8c3
+    + add the HARDENED sentence from its Notes above.
+[ ] Flight Delay Insurer: replace explorer link with 0x74c65E2F...8005
+    + add the HARDENED sentence from its Notes above.
+====================================================
