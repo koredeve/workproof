@@ -19,6 +19,9 @@ function cleanHash() {
 
 export function navigate(path) {
   window.location.hash = path;
+  // Some environments (happy-dom, certain webviews) do not fire hashchange
+  // synchronously for programmatic assignment — notify listeners directly.
+  forceRouteSync();
 }
 
 export function parseRoute(route) {
@@ -29,4 +32,12 @@ export function parseRoute(route) {
   if (parts[0] === 'dashboard') return { view: 'dashboard' };
   if (parts[0] === 'profile') return { view: 'profile' };
   return { view: 'marketplace' };
+}
+
+// Ensure hashchange listeners fire even in environments (happy-dom, some
+// embedded webviews) where programmatic hash assignment is silent.
+export function forceRouteSync() {
+  try {
+    window.dispatchEvent(new Event('hashchange'));
+  } catch {}
 }

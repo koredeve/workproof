@@ -466,6 +466,8 @@ function CreateView({ client, me, onPosted }) {
   const [deadline, setDeadline] = useState('');
   const [criteria, setCriteria] = useState(['', '']);
   const [confirmed, setConfirmed] = useState(false);
+  const [aiBrief, setAiBrief] = useState('');
+  const [aiDrafted, setAiDrafted] = useState(false);
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -512,6 +514,58 @@ function CreateView({ client, me, onPosted }) {
       </div>
       <div className="row" style={{ marginTop: 8 }}>
         <input style={{ flex: 3 }} placeholder="Describe the work — scope, deliverables, context" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+
+      <div className="aidraft" style={{ marginTop: 14, border: '1px dashed var(--line-strong)', borderRadius: 10, padding: 12 }}>
+        <span className="sectlabel">AI assistant (optional)</span>
+        <p className="hint" style={{ marginTop: 4 }}>
+          Paste your request in plain words. The on-chain CriteriaAssistant drafts a title,
+          description and criteria — <strong>you review and edit everything before it becomes binding.</strong>
+        </p>
+        {aiDrafted ? (
+          <>
+            <textarea
+              rows={3}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title"
+            />
+            <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />
+          </>
+        ) : (
+          <div className="row">
+            <textarea
+              rows={2}
+              style={{ flex: 3 }}
+              placeholder="e.g. I need a developer to build a responsive landing page with hero, pricing and contact form, deployed within seven days."
+              value={aiBrief}
+              onChange={(e) => setAiBrief(e.target.value)}
+            />
+            <button
+              className="btn-ghost"
+              disabled={busy === 'ai' || !aiBrief.trim()}
+              onClick={async () => {
+                setBusy('ai');
+                try {
+                  const reqId = 'draft-' + Date.now().toString(36);
+                  await draftCriteria(client, reqId, aiBrief.trim());
+                  const d = await getDraft(client, reqId);
+                  setTitle(d.title || '');
+                  setDescription(d.description || '');
+                  setCriteria((d.criteria_json ? JSON.parse(d.criteria_json) : ['']).map((x) => String(x)));
+                  setAiDrafted(true);
+                } catch (e) {
+                  setError('Assistant failed: ' + (e?.message ?? String(e)).slice(0, 120));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy === 'ai' || !aiBrief.trim()}
+            >
+              {busy === 'ai' ? 'Validators drafting…' : 'Draft with AI'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 14 }}>

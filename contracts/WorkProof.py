@@ -27,6 +27,8 @@ PROTOCOL_FEE_BPS_CAP = 1000  # max 10%
 
 MIN_BUDGET_ATTO = u256(10 ** 17)
 FORCE_RELEASE_DELAY_SECONDS = 3 * 24 * 3600  # client review window after VERIFIED
+DISPUTE_WINDOW_SECONDS = 3 * 24 * 3600        # freelancer dispute window after FAILED
+CLIENT_REVIEW_SECONDS = 3 * 24 * 3600          # client review window after VERIFIED
 MAX_EVIDENCE_URLS = 3
 EVIDENCE_CHARS = 1500
 
@@ -86,6 +88,8 @@ class Contract:
 	verdict_reasoning: str
 	verified_ts: u256
 	amendment_pending: str
+	failed_ts: u256
+	dispute_window_end: u256
 	rating: u256
 	rated: bool
 
@@ -153,6 +157,8 @@ class WorkProof(gl.Contract):
 			verdict_reasoning="",
 			verified_ts=u256(0),
 			amendment_pending="",
+			failed_ts=u256(0),
+			dispute_window_end=u256(0),
 			rating=u256(0),
 			rated=False,
 		)
@@ -417,12 +423,14 @@ class WorkProof(gl.Contract):
 			c.verdict_criteria = "[]"
 		c.verdict_reasoning = str(result["reasoning"])
 
+		now_ts = u256(int(time.time()))
 		if result["overall"] == "PASSED":
-			# Enter the client review window: escrow stays locked until the
-			# client releases, the window expires, or a dispute is resolved.
-			c.verified_ts = u256(int(time.time()))
+			c.verified_ts = now_ts
+			c.dispute_window_end = now_ts + u256(CLIENT_REVIEW_SECONDS)
 			c.status = STATUS_VERIFIED
 		else:
+			c.failed_ts = now_ts
+			c.dispute_window_end = now_ts + u256(DISPUTE_WINDOW_SECONDS)
 			c.status = STATUS_FAILED
 
 	@gl.public.write
@@ -441,7 +449,7 @@ class WorkProof(gl.Contract):
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only the freelancer may force release")
 		if c.status != STATUS_VERIFIED:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Release requires a verified contract")
-		if u256(int(time.time())) < c.verified_ts + u256(FORCE_RELEASE_DELAY_SECONDS):
+		if u256(int(time.time())) < max(c.dispute_window_end, c.verified_ts + u256(FORCE_RELEASE_DELAY_SECONDS)):
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} The client review window is still open")
 		self._settle_to_worker(c)
 		c.status = STATUS_PAID
@@ -454,6 +462,8 @@ class WorkProof(gl.Contract):
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only contract parties may open a dispute")
 		if c.status not in (STATUS_FAILED, STATUS_VERIFIED):
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Disputes are opened after verification")
+		if c.dispute_window_end != u256(0) and u256(int(time.time())) >= c.dispute_window_end:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} The dispute window has closed")
 		if not reason.strip():
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} A dispute reason is required")
 		c.dispute_reason = str(reason)
@@ -465,6 +475,8 @@ class WorkProof(gl.Contract):
 		self._require_client(c)
 		if c.status != STATUS_FAILED:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Refund is only available after a failed verification")
+		if c.dispute_window_end != u256(0) and u256(int(time.time())) < c.dispute_window_end:
+			raise gl.vm.UserError(f"{ERROR_EXPECTED} The freelancer dispute window is still open")
 		self.credits[c.client] = self.credits.get(c.client, u256(0)) + c.budget_atto
 		c.status = STATUS_REFUNDED
 
@@ -476,24 +488,57 @@ class WorkProof(gl.Contract):
 
 		description_text = str(c.description)
 		criteria_text = ""
-		for i in range(len(c.criteria)):
+		n_criteria = len(c.criteria)
+		for i in range(n_criteria):
 			criteria_text = criteria_text + str(i + 1) + ". " + str(c.criteria[i]) + "\n"
 		explanation_text = str(c.explanation)
+		evidence_url_list = []
+		for i in range(len(c.evidence_urls)):
+			evidence_url_list.append(str(c.evidence_urls[i]))
 		dispute_reason = str(c.dispute_reason)
 		original_verdict = str(c.verdict_overall) + " — " + str(c.verdict_reasoning)
 
 		def leader_fn() -> dict:
+			# Re-retrieve the submitted evidence exactly as verify_work does,
+			# so the arbitration rests on fresh evidence, not the leader's claim.
+			evidence_blocks = ""
+			fetch_failures = 0
+			for i in range(len(evidence_url_list)):
+				url = evidence_url_list[i]
+				try:
+					res = gl.nondet.web.get(url)
+					http_status = int(res.status)
+					if http_status >= 500:
+						raise gl.vm.UserError(f"{ERROR_TRANSIENT} evidence temporarily unavailable")
+					if http_status >= 400:
+						evidence_blocks = evidence_blocks + "[EVIDENCE " + str(i + 1) + " " + url + " could not be retrieved: HTTP " + str(http_status) + "]\n"
+						continue
+					body = res.body.decode("utf-8", "ignore")[:EVIDENCE_CHARS]
+					evidence_blocks = evidence_blocks + "[EVIDENCE " + str(i + 1) + " " + url + "]\n" + body + "\n"
+				except gl.vm.UserError:
+					raise
+				except Exception:
+					evidence_blocks = evidence_blocks + "[EVIDENCE " + str(i + 1) + " " + url + " could not be retrieved]\n"
+			if fetch_failures == len(evidence_url_list):
+				raise gl.vm.UserError(f"{ERROR_TRANSIENT} No evidence could be retrieved; try again later")
+
 			prompt = (
 				"You are re-arbitrating a disputed freelance contract. The acceptance criteria were "
 				"fixed when the contract was created and MUST NOT be rewritten or reinterpreted loosely.\n"
-				"Decide only whether the submitted evidence satisfies the ORIGINAL criteria.\n\n"
+				"Decide ONLY whether the retrieved evidence satisfies the ORIGINAL criteria, "
+				"scoring every single criterion. Do not invent requirements or evidence.\n\n"
 				"ORIGINAL WORK AGREEMENT:\n<agreement>" + description_text + "</agreement>\n\n"
 				"ORIGINAL ACCEPTANCE CRITERIA:\n<criteria>" + criteria_text + "</criteria>\n\n"
 				"FREELANCER EXPLANATION:\n<explanation>" + explanation_text + "</explanation>\n\n"
-				"ORIGINAL AUTOMATED VERDICT:\n<verdict>" + original_verdict + "</verdict>\n\n"
+				"RETRIEVED EVIDENCE:\n<evidence>" + evidence_blocks + "</evidence>\n\n"
 				"DISPUTE REASON:\n<reason>" + dispute_reason + "</reason>\n\n"
-				'Reply with JSON exactly like: {"for_worker": true or false, "reasoning": "short paragraph"} '
-				"where for_worker is true only if the evidence shows the original criteria were met."
+				"ORIGINAL AUTOMATED VERDICT (context only — you may overturn it if the evidence warrants):\n"
+				"<verdict>" + original_verdict + "</verdict>\n\n"
+				'Reply with JSON exactly like: {"for_worker": true or false, '
+				'"criteria": [{"index": 1, "result": "PASS" or "FAIL" or "UNVERIFIABLE", "reason": "short evidence-based reason"}], '
+				'"reasoning": "one short paragraph"} '
+				"where for_worker is true only if no criterion fails and at most one is UNVERIFIABLE. "
+				"You MUST include every criterion index."
 			)
 			analysis = gl.nondet.exec_prompt(prompt, response_format="json")
 			parsed = _parse_llm_json(analysis)
@@ -509,17 +554,39 @@ class WorkProof(gl.Contract):
 				verdict = raw
 			else:
 				verdict = str(raw).strip().lower() in ("true", "yes", "1")
-			return {"for_worker": verdict, "reasoning": str(parsed.get("reasoning", ""))[:600]}
+			crit_out = []
+			for item in parsed.get("criteria", []) if isinstance(parsed.get("criteria"), list) else []:
+				if isinstance(item, dict):
+					res = str(item.get("result", "")).strip().upper()
+					if res in ("PASS", "FAIL", "UNVERIFIABLE"):
+						crit_out.append({"index": int(item.get("index", 0)), "result": res, "reason": str(item.get("reason", ""))[:300]})
+			return {
+				"for_worker": verdict,
+				"criteria": crit_out,
+				"reasoning": str(parsed.get("reasoning", ""))[:600],
+			}
 
 		def validator_fn(leaders_res: gl.vm.Result) -> bool:
 			if not isinstance(leaders_res, gl.vm.Return):
 				return _handle_leader_error(leaders_res, leader_fn)
 			try:
 				leader_verdict = bool(leaders_res.calldata.get("for_worker"))
+				leader_crit = leaders_res.calldata.get("criteria", [])
 				fresh = leader_fn()
 			except Exception:
 				return False
-			return leader_verdict == fresh["for_worker"]
+			if leader_verdict != bool(fresh.get("for_worker")):
+				return False
+			leader_map = {}
+			for item in leader_crit:
+				if isinstance(item, dict):
+					leader_map[int(item.get("index", 0))] = str(item.get("result", ""))
+			mismatches = 0
+			for item in fresh.get("criteria", []):
+				idx = int(item.get("index", 0))
+				if idx in leader_map and leader_map[idx] != str(item.get("result", "")):
+					mismatches += 1
+			return mismatches <= 1
 
 		result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 

@@ -37,6 +37,7 @@ await write(fClient, 'submit_work', [id, ['https://example.com'], 'The evidence 
 
 console.log('5. running GenLayer verification — validators fetch evidence and score criteria…');
 await write(client, 'verify_work', [id]);
+await write(client, 'approve_release', [id]);
 
 const c = await client.readContract({ address: CONTRACT_ADDRESS, functionName: 'get_contract', args: [id] });
 console.log('status:', c.status);

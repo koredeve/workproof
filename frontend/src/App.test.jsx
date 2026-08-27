@@ -126,8 +126,8 @@ describe('WorkProof app', () => {
   it('create view: criteria builder, confirmation gate and preview', async () => {
     renderConnected();
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(screen.getByPlaceholderText(/Contract title/)).toBeTruthy());
-    fireEvent.change(screen.getByPlaceholderText(/Contract title/), { target: { value: 'New gig' } });
+    const titleInput = await screen.findByPlaceholderText(/Contract title/, {}, { timeout: 3000 });
+    fireEvent.change(titleInput, { target: { value: 'New gig' } });
     fireEvent.change(screen.getByPlaceholderText(/Describe the work/), { target: { value: 'Do the work' } });
     fireEvent.change(screen.getByPlaceholderText(/Criterion 1/), { target: { value: 'It works' } });
 
