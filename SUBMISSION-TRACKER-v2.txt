@@ -66,7 +66,7 @@ GitHub:
 https://github.com/koredeve/flight-delay-insurer
 
 Explorer (CURRENT — UPDATE THE PORTAL LINK TO THIS):
-https://explorer-studio.genlayer.com/address/0x74c65E2F275b7D3DBf9145C5A37D062Df6228005
+https://explorer-studio.genlayer.com/address/0x5ed67883D65c4c9Bb8e7f77C32E41106088B7E6F
 
 ====================================================
 5) JUDGMENT ESCROW — [READY]
