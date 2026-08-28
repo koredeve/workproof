@@ -25,23 +25,23 @@ Freelancer ──submit evidence──▶        │
                                        │ verify_work()
                                        ▼
                         Leader: fetch evidence URLs (web)
-                                + LLM evaluation per criterion
+                                + LLM evaluation per criterion (1..N)
                                        │
                        Validators: independent re-run
-                       (overall + per-criterion agreement,
-                        ≤1 criterion tolerance, errors
+                       (overall + exact per-criterion consensus across
+                        all N criteria with complete mapping, errors
                         classified EXPECTED/EXTERNAL/
                         TRANSIENT/LLM_ERROR)
                                        │
-                     PASSED ──▶ escrow → freelancer
-                     FAILED ──▶ refund or dispute
+                     PASSED ──▶ review window ──▶ approve / dispute / force-release
+                     FAILED ──▶ dispute window ──▶ dispute / client refund
                      DISPUTED ──▶ re-arbitration under
-                                  original criteria
+                                  original immutable criteria
 ```
 
 ## Why GenLayer?
 
-Ordinary smart contracts cannot read a web page, and cannot decide whether "the page includes a pricing section" is true. Deterministic oracles cannot agree on the *meaning* of unstructured evidence. GenLayer's AI-validator consensus does exactly this: the leader proposes per-criterion results, every validator independently retrieves the evidence and re-evaluates, and the result only settles when they agree. Verification is evidence-based, criteria are immutable after acceptance, and every ruling is appealable before finalization through GenLayer's Optimistic Democracy.
+Ordinary smart contracts cannot read a web page, and cannot decide whether "the page includes a pricing section" is true. Deterministic oracles cannot agree on the *meaning* of unstructured evidence. GenLayer's AI-validator consensus does exactly this: the leader proposes per-criterion results, every validator independently retrieves the evidence and re-evaluates all criteria, and the result only settles when validators reach complete consensus on all per-criterion outcomes. Verification is evidence-based, criteria are immutable after acceptance, and every ruling is appealable before finalization through GenLayer's Optimistic Democracy.
 
 ## How verification works
 
@@ -51,10 +51,10 @@ Contract (criteria fixed at creation)
    → Leader retrieves evidence from the live web
    → LLM scores each criterion: PASS / FAIL / UNVERIFIABLE
    → Validators independently re-run and compare
-        (overall must match; ≤1 criterion disagreement tolerated;
+        (overall must match; complete 1..N criterion map; 0 mismatches tolerated;
          unreachable evidence = TRANSIENT, retried by consensus)
    → Result + per-criterion reasons stored on-chain
-   → Escrow settles: PAID / refund / dispute arbitration
+   → Escrow enters review/dispute window: PAID / refund / dispute arbitration
 ```
 
 ## The AI assistant
@@ -77,12 +77,12 @@ Paste a prose brief ("I need a dev to build a responsive landing page...") into 
 python3.12+ -m venv .venv && source .venv/bin/activate   # 3.12+ required by SDK types
 pip install -r requirements.txt
 genvm-lint check contracts/WorkProof.py --json
-pytest tests/direct/ -v
+pytest tests/direct/ -v   # 44 direct + adversarial contract tests
 
 # frontend
 cd frontend && npm install
-npm test        # 29 unit + DOM interaction tests
-npm run smoke   # live read-only check
+npm test                  # 36 unit + DOM interaction tests
+npm run smoke             # live read-only check
 npm run dev
 ```
 

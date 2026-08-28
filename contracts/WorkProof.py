@@ -376,19 +376,30 @@ class WorkProof(gl.Contract):
 			overall = str(parsed.get("overall", "")).strip().upper()
 			if overall not in ("PASSED", "FAILED"):
 				raise gl.vm.UserError(f"{ERROR_LLM} invalid overall verdict: {str(parsed.get('overall'))}")
+			n_crit = len(c.criteria)
 			raw_criteria = parsed.get("criteria")
-			if not isinstance(raw_criteria, list) or len(raw_criteria) == 0:
+			if not isinstance(raw_criteria, list):
 				raise gl.vm.UserError(f"{ERROR_LLM} missing per-criterion results")
-			clean = []
+			crit_map = {}
 			for item in raw_criteria:
 				if not isinstance(item, dict):
+					continue
+				idx = item.get("index")
+				if idx is None:
+					continue
+				try:
+					idx_int = int(idx)
+				except (ValueError, TypeError):
+					continue
+				if idx_int < 1 or idx_int > n_crit:
 					continue
 				res = str(item.get("result", "")).strip().upper()
 				if res not in ("PASS", "FAIL", "UNVERIFIABLE"):
 					res = "UNVERIFIABLE"
-				clean.append({"index": item.get("index", 0), "result": res, "reason": str(item.get("reason", ""))[:300]})
-			if len(clean) == 0:
-				raise gl.vm.UserError(f"{ERROR_LLM} no valid criterion results")
+				crit_map[idx_int] = {"index": idx_int, "result": res, "reason": str(item.get("reason", ""))[:300]}
+			if len(crit_map) != n_crit:
+				raise gl.vm.UserError(f"{ERROR_LLM} incomplete criterion results: expected {n_crit}, got {len(crit_map)}")
+			clean = [crit_map[i] for i in range(1, n_crit + 1)]
 			return {"overall": overall, "criteria": clean, "reasoning": str(parsed.get("reasoning", ""))[:600]}
 
 		def validator_fn(leaders_res: gl.vm.Result) -> bool:
@@ -402,16 +413,38 @@ class WorkProof(gl.Contract):
 				return False
 			if str(fresh.get("overall", "")) != leader_overall:
 				return False
+			n_crit = len(c.criteria)
+			if not isinstance(leader_crit, list) or len(leader_crit) != n_crit:
+				return False
+			fresh_crit = fresh.get("criteria", [])
+			if not isinstance(fresh_crit, list) or len(fresh_crit) != n_crit:
+				return False
 			leader_map = {}
 			for item in leader_crit:
-				if isinstance(item, dict):
-					leader_map[int(item.get("index", 0))] = str(item.get("result", ""))
-			mismatches = 0
-			for item in fresh.get("criteria", []):
-				idx = int(item.get("index", 0))
-				if idx in leader_map and leader_map[idx] != str(item.get("result", "")):
-					mismatches = mismatches + 1
-			return mismatches <= 1
+				if isinstance(item, dict) and "index" in item and "result" in item:
+					try:
+						idx = int(item["index"])
+						if 1 <= idx <= n_crit:
+							leader_map[idx] = str(item["result"])
+					except (ValueError, TypeError):
+						return False
+			if len(leader_map) != n_crit:
+				return False
+			fresh_map = {}
+			for item in fresh_crit:
+				if isinstance(item, dict) and "index" in item and "result" in item:
+					try:
+						idx = int(item["index"])
+						if 1 <= idx <= n_crit:
+							fresh_map[idx] = str(item["result"])
+					except (ValueError, TypeError):
+						return False
+			if len(fresh_map) != n_crit:
+				return False
+			for i in range(1, n_crit + 1):
+				if i not in leader_map or i not in fresh_map or leader_map[i] != fresh_map[i]:
+					return False
+			return True
 
 		c.status = STATUS_VERIFYING
 		result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
@@ -554,12 +587,28 @@ class WorkProof(gl.Contract):
 				verdict = raw
 			else:
 				verdict = str(raw).strip().lower() in ("true", "yes", "1")
-			crit_out = []
-			for item in parsed.get("criteria", []) if isinstance(parsed.get("criteria"), list) else []:
-				if isinstance(item, dict):
-					res = str(item.get("result", "")).strip().upper()
-					if res in ("PASS", "FAIL", "UNVERIFIABLE"):
-						crit_out.append({"index": int(item.get("index", 0)), "result": res, "reason": str(item.get("reason", ""))[:300]})
+			raw_criteria = parsed.get("criteria", [])
+			if not isinstance(raw_criteria, list):
+				raise gl.vm.UserError(f"{ERROR_LLM} missing per-criterion results for dispute")
+			crit_map = {}
+			for item in raw_criteria:
+				if not isinstance(item, dict):
+					continue
+				idx = item.get("index")
+				if idx is None:
+					continue
+				try:
+					idx_int = int(idx)
+				except (ValueError, TypeError):
+					continue
+				if idx_int < 1 or idx_int > n_criteria:
+					continue
+				res = str(item.get("result", "")).strip().upper()
+				if res in ("PASS", "FAIL", "UNVERIFIABLE"):
+					crit_map[idx_int] = {"index": idx_int, "result": res, "reason": str(item.get("reason", ""))[:300]}
+			if len(crit_map) != n_criteria:
+				raise gl.vm.UserError(f"{ERROR_LLM} incomplete criterion results for dispute: expected {n_criteria}, got {len(crit_map)}")
+			crit_out = [crit_map[i] for i in range(1, n_criteria + 1)]
 			return {
 				"for_worker": verdict,
 				"criteria": crit_out,
@@ -577,16 +626,37 @@ class WorkProof(gl.Contract):
 				return False
 			if leader_verdict != bool(fresh.get("for_worker")):
 				return False
+			if not isinstance(leader_crit, list) or len(leader_crit) != n_criteria:
+				return False
+			fresh_crit = fresh.get("criteria", [])
+			if not isinstance(fresh_crit, list) or len(fresh_crit) != n_criteria:
+				return False
 			leader_map = {}
 			for item in leader_crit:
-				if isinstance(item, dict):
-					leader_map[int(item.get("index", 0))] = str(item.get("result", ""))
-			mismatches = 0
-			for item in fresh.get("criteria", []):
-				idx = int(item.get("index", 0))
-				if idx in leader_map and leader_map[idx] != str(item.get("result", "")):
-					mismatches += 1
-			return mismatches <= 1
+				if isinstance(item, dict) and "index" in item and "result" in item:
+					try:
+						idx = int(item["index"])
+						if 1 <= idx <= n_criteria:
+							leader_map[idx] = str(item["result"])
+					except (ValueError, TypeError):
+						return False
+			if len(leader_map) != n_criteria:
+				return False
+			fresh_map = {}
+			for item in fresh_crit:
+				if isinstance(item, dict) and "index" in item and "result" in item:
+					try:
+						idx = int(item["index"])
+						if 1 <= idx <= n_criteria:
+							fresh_map[idx] = str(item["result"])
+					except (ValueError, TypeError):
+						return False
+			if len(fresh_map) != n_criteria:
+				return False
+			for i in range(1, n_criteria + 1):
+				if i not in leader_map or i not in fresh_map or leader_map[i] != fresh_map[i]:
+					return False
+			return True
 
 		result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 

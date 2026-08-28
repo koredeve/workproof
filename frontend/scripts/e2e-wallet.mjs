@@ -80,25 +80,25 @@ try {
   console.log('connect warning:', (e?.message ?? String(e)).slice(0, 100));
 }
 
-const jobId = 'job-wallet-' + Date.now().toString(36);
-console.log('posting job via wallet signature…');
+const contractId = 'contract-wallet-' + Date.now().toString(36);
+console.log('posting contract via wallet signature…');
 const hash = await client.writeContract({
   address: CONTRACT_ADDRESS,
-  functionName: 'post_job',
-  args: [jobId, 'Wallet-signed job', 'Posted through a simulated MetaMask provider — the wallet signed this transaction.'],
+  functionName: 'post_contract',
+  args: [contractId, 'Wallet-signed contract', 'Posted through a simulated MetaMask provider — the wallet signed this transaction.'],
   value: 500000000000000000n,
 });
 console.log('tx hash:', hash);
 const receipt = await client.waitForTransactionReceipt({ hash, retries: 300 });
 console.log('receipt status:', receipt.status_name ?? receipt.status);
 
-const job = await client.readContract({
+const contract = await client.readContract({
   address: CONTRACT_ADDRESS,
-  functionName: 'get_job',
-  args: [jobId],
+  functionName: 'get_contract',
+  args: [contractId],
 });
-console.log('job status:', job.status, '| budget:', String(job.budget_atto));
-if (job.status !== 'open') {
+console.log('contract status:', contract.status, '| budget:', String(contract.budget_atto));
+if (contract.status !== 'OPEN') {
   console.error('WALLET FLOW FAIL');
   process.exit(1);
 }

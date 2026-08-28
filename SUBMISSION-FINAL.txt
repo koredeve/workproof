@@ -1,15 +1,15 @@
-WORKPROOF — FINAL SUBMISSION (v3, paste-ready)
+WORKPROOF — FINAL RESUBMISSION (v5, paste-ready)
 ==============================================
 
 TITLE:
 WorkProof — Freelance work. Verified by consensus.
 
-DESCRIPTION (993 chars):
-WorkProof is a trustless work verification and settlement protocol on GenLayer. Clients create work contracts with objective acceptance criteria and lock GEN escrow; freelancers submit evidence URLs; validators retrieve the evidence from the live web and score every criterion PASS / FAIL / UNVERIFIABLE, settling only when they agree on per-criterion results. A review window protects both sides: clients release or dispute a passing verdict, freelancers force-release after 3 days, and disputes re-arbitrate under the original immutable criteria. The React frontend ships real wallet connection (EIP-6963), a criteria builder with an on-chain AI drafting assistant, per-criterion result tables, on-chain deadlines, a capped protocol fee, mutual amendments, ratings with on-chain reputation, a built-in testnet faucet, and a labeled demo mode. 34 contract tests + 33 frontend tests. Verified live on StudioNet: validators fetched example.com and scored criteria with evidence-based reasoning.
+DESCRIPTION (964 chars):
+WorkProof is a trustless work verification and escrow protocol on GenLayer. Clients create contracts with objective acceptance criteria and fund escrow; freelancers submit evidence URLs; validators retrieve evidence from the live web and score every criterion (PASS/FAIL/UNVERIFIABLE), reaching consensus on complete per-criterion maps with zero mismatch tolerance before funds move. Review & dispute windows protect both parties: clients approve or dispute passing work, freelancers force-release after 3 days, and disputes re-arbitrate strictly under original immutable criteria. The React frontend features EIP-6963 multi-wallet connection, an on-chain AI drafting assistant, mutual amendments, on-chain deadlines, capped protocol fees, reputation ratings, a built-in testnet faucet, and a labeled demo mode. 44 contract tests (including complete-consensus adversarial suites) + 36 frontend tests. Live on StudioNet with verified evidence-based rulings.
 
 EVIDENCE LINKS:
 1. GitHub Repository: https://github.com/koredeve/workproof (PUBLIC)
-2. Explorer — main protocol (v3, review-window): https://explorer-studio.genlayer.com/address/0x6E56eDe7AC0371Ace451618063d50903DdC36A27
+2. Explorer — main protocol (v4, complete-consensus): https://explorer-studio.genlayer.com/address/0x6E56eDe7AC0371Ace451618063d50903DdC36A27
 3. Explorer — AI criteria assistant: https://explorer-studio.genlayer.com/address/0xe4d2e6079559f04BE4ef17B7461A48e4F81c20B2
 4. Explorer — testnet faucet (0.1 GEN / wallet / week): https://explorer-studio.genlayer.com/address/0x5aB77Faab78e9c2578a1473B1326787e51cb2F9e
 5. Live application: https://workproof-gamma.vercel.app

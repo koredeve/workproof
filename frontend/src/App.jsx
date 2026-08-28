@@ -137,24 +137,48 @@ function CriterionResults({ verdictJson, criteria }) {
   );
 }
 
-function AmendmentBox({ c, onAction, busy }) {
+function AmendmentBox({ c, client, me, onAction, busy }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
+  const isClient = sameAddr(me, c.client);
+  const isWorker = sameAddr(me, c.freelancer);
   if (c.amendment_pending) {
+    let pendingList = [];
+    try {
+      pendingList = JSON.parse(c.amendment_pending);
+    } catch {
+      pendingList = [c.amendment_pending];
+    }
     return (
       <div className="submitbox">
-        <p className="hint">An amendment is pending — awaiting freelancer approval.</p>
-        {sameAddr(me, c.freelancer) && (
-          <button className="btn-stamp" disabled={!!busy}
-            onClick={() => onAction('approve_amendment', [c.id], 'Amendment approved — criteria updated.')}>
-            Approve amendment
-          </button>
-        )}
+        <p className="hint"><strong>Proposed Criteria Amendment:</strong></p>
+        <ol className="critlist" style={{ margin: '6px 0 10px 0' }}>
+          {pendingList.map((item, idx) => (
+            <li key={idx}>{item}</li>
+          ))}
+        </ol>
+        <p className="hint">Awaiting freelancer approval before taking effect.</p>
+        <div className="row">
+          {isWorker && (
+            <button className="btn-stamp" disabled={!!busy}
+              onClick={() => onAction('approve_amendment', [c.id], 'Amendment approved — criteria updated.')}>
+              Approve amendment
+            </button>
+          )}
+          {isClient && (
+            <button className="ghost" disabled={!!busy}
+              onClick={() => onAction('cancel_amendment', [c.id], 'Amendment proposal cancelled.')}>
+              Cancel proposal
+            </button>
+          )}
+        </div>
       </div>
     );
   }
   if (!open) {
-    return <button className="ghost" style={{ marginTop: 0 }} onClick={() => setOpen(true)}>Propose criteria amendment</button>;
+    return isClient ? (
+      <button className="ghost" style={{ marginTop: 0 }} onClick={() => setOpen(true)}>Propose criteria amendment</button>
+    ) : null;
   }
   return (
     <div className="submitbox">
@@ -550,9 +574,21 @@ function CreateView({ client, me, onPosted }) {
                   const reqId = 'draft-' + Date.now().toString(36);
                   await draftCriteria(client, reqId, aiBrief.trim());
                   const d = await getDraft(client, reqId);
-                  setTitle(d.title || '');
-                  setDescription(d.description || '');
-                  setCriteria((d.criteria_json ? JSON.parse(d.criteria_json) : ['']).map((x) => String(x)));
+                  let parsedCriteria = [];
+                  if (d.criteria) {
+                    try {
+                      parsedCriteria = Array.isArray(d.criteria) ? d.criteria : JSON.parse(d.criteria);
+                    } catch {
+                      parsedCriteria = [d.criteria];
+                    }
+                  } else if (d.criteria_json) {
+                    try {
+                      parsedCriteria = JSON.parse(d.criteria_json);
+                    } catch {
+                      parsedCriteria = [d.criteria_json];
+                    }
+                  }
+                  setCriteria((parsedCriteria.length > 0 ? parsedCriteria : ['']).map((x) => String(x)));
                   setAiDrafted(true);
                 } catch (e) {
                   setError('Assistant failed: ' + (e?.message ?? String(e)).slice(0, 120));
@@ -560,7 +596,6 @@ function CreateView({ client, me, onPosted }) {
                   setBusy(false);
                 }
               }}
-              disabled={busy === 'ai' || !aiBrief.trim()}
             >
               {busy === 'ai' ? 'Validators drafting…' : 'Draft with AI'}
             </button>

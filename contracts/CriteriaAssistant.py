@@ -30,8 +30,16 @@ def _parse_llm_json(text) -> dict:
 
 
 def _handle_leader_error(leaders_res, leader_fn) -> bool:
+	leader_msg = leaders_res.message if hasattr(leaders_res, "message") else ""
 	try:
 		leader_fn()
+		return False
+	except gl.vm.UserError as e:
+		validator_msg = e.message if hasattr(e, "message") else str(e)
+		if validator_msg.startswith(ERROR_LLM):
+			return validator_msg == leader_msg
+		if validator_msg.startswith(ERROR_TRANSIENT) and leader_msg.startswith(ERROR_TRANSIENT):
+			return True
 		return False
 	except Exception:
 		return False
