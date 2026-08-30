@@ -173,7 +173,10 @@ class WorkProof(gl.Contract):
 		if len(criteria) < 1:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} At least one acceptance criterion is required")
 		for i in range(len(criteria)):
-			c.criteria.append(str(criteria[i]))
+			crit_str = str(criteria[i]).strip()
+			if not crit_str:
+				raise gl.vm.UserError(f"{ERROR_EXPECTED} Criteria items must not be empty")
+			c.criteria.append(crit_str)
 
 	@gl.public.write
 	def set_deadline(self, contract_id: str, deadline_ts: u256) -> None:
@@ -204,7 +207,8 @@ class WorkProof(gl.Contract):
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Only the accepted freelancer may submit")
 		if c.status != STATUS_ACCEPTED:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} Contract is not awaiting work")
-		if not explanation.strip():
+		clean_exp = str(explanation).strip()
+		if not clean_exp:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} An explanation of the submitted work is required")
 		if len(evidence_urls) == 0:
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} At least one evidence URL is required")
@@ -213,8 +217,11 @@ class WorkProof(gl.Contract):
 		if c.deadline != "" and u256(int(time.time())) > u256(int(c.deadline)):
 			raise gl.vm.UserError(f"{ERROR_EXPECTED} The deadline has passed; work can no longer be submitted")
 		for i in range(len(evidence_urls)):
-			c.evidence_urls.append(str(evidence_urls[i]))
-		c.explanation = str(explanation)
+			url = str(evidence_urls[i]).strip()
+			if not url.startswith("https://"):
+				raise gl.vm.UserError(f"{ERROR_EXPECTED} Evidence URLs must start with https://")
+			c.evidence_urls.append(url)
+		c.explanation = clean_exp
 		c.status = STATUS_SUBMITTED
 
 	def _settle_to_worker(self, c: Contract) -> None:
