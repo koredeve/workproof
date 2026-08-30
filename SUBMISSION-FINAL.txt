@@ -10,8 +10,8 @@ WorkProof is a trustless work verification and escrow protocol on GenLayer. Clie
 EVIDENCE LINKS:
 1. GitHub Repository: https://github.com/koredeve/workproof (PUBLIC)
 2. Explorer — main protocol (v5, complete-consensus): https://explorer-studio.genlayer.com/address/0x772c5e2671780Fdfbd58624accaFCa95c46D234b
-3. Explorer — AI criteria assistant: https://explorer-studio.genlayer.com/address/0xe4d2e6079559f04BE4ef17B7461A48e4F81c20B2
-4. Explorer — testnet faucet (0.1 GEN / wallet / week): https://explorer-studio.genlayer.com/address/0x5aB77Faab78e9c2578a1473B1326787e51cb2F9e
+3. Explorer — AI criteria assistant: https://explorer-studio.genlayer.com/address/0xb8Bf80725F1588384d005F7ff0BD4cF8244f7cB8
+4. Explorer — testnet faucet (0.1 GEN / wallet / week): https://explorer-studio.genlayer.com/address/0xa570d69894B09fcD786451D9a1F311847f1b4aEb
 5. Live application: https://workproof-gamma.vercel.app
 
 LIVE PROOF: contract GL-EX-MT8I65A1 shows a completed human cycle — 4/4 criteria
